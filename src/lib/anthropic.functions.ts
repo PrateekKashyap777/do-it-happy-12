@@ -1,10 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import {
-  formatSignalsForPrompt,
-  type BriefContent as _BC,
-} from "@/lib/terrain-utils";
-import type { Signal, Client } from "@/lib/terrain-types";
+import { formatSignalsForPrompt } from "@/lib/terrain-utils";
+import type { Signal, Client, BriefContent, ContentRecommendation } from "@/lib/terrain-types";
 
 const MODEL = "claude-sonnet-4-5-20250929";
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -76,9 +73,9 @@ Respond ONLY with the JSON object. No code fences. No commentary.`;
 
     const raw = await callClaude({ system, user, maxTokens: 2500 });
     const cleaned = stripFences(raw);
-    let content: unknown;
+    let content: BriefContent;
     try {
-      content = JSON.parse(cleaned);
+      content = JSON.parse(cleaned) as BriefContent;
     } catch (e) {
       throw new Error("Claude returned invalid JSON. Try again or add more signals.");
     }
