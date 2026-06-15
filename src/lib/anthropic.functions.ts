@@ -3,7 +3,7 @@ import { z } from "zod";
 import { formatSignalsForPrompt } from "@/lib/terrain-utils";
 import type { Signal, Client, BriefContent, ContentRecommendation } from "@/lib/terrain-types";
 
-const MODEL = "claude-sonnet-4-5-20250929";
+const MODEL = "claude-sonnet-4-6";
 const API_URL = "https://api.anthropic.com/v1/messages";
 
 async function callClaude(args: {
