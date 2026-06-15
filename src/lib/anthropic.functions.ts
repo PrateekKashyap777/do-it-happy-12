@@ -228,7 +228,7 @@ export const generatePersonaSuggestions = createServerFn({ method: "POST" })
       user,
       maxTokens: 1200,
     });
-    const cleaned = stripFences(raw);
+    const cleaned = extractJSON(raw);
     let personas: Array<{ name: string; location: string; trigger: string; hook: string }> = [];
     try {
       personas = JSON.parse(cleaned);
@@ -236,5 +236,9 @@ export const generatePersonaSuggestions = createServerFn({ method: "POST" })
     } catch {
       personas = [];
     }
+    if (personas.length === 0) {
+      throw new Error(`Persona generation failed — Claude returned: ${raw.slice(0, 200)}`);
+    }
     return { personas };
+
   });
