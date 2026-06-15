@@ -133,7 +133,38 @@ function ClientDetail() {
       toast.error(err instanceof Error ? `Brief generation failed — ${err.message}` : "Brief generation failed");
     } finally {
       setGenerating(false);
+  }
+
+  async function handlePullLiveData() {
+    if (!client) return;
+    if (!client.keywords || client.keywords.length === 0) {
+      toast.error("Add keywords to this client's config before pulling data.");
+      return;
     }
+    setPulling(true);
+    try {
+      const result = await pullData({
+        data: {
+          clientId: client.id,
+          keywords: client.keywords,
+          weekDate: week,
+          locationCode: 2356,
+          languageCode: "en",
+        },
+      });
+      const total = result.volumes + result.trends;
+      if (result.errors.length > 0) {
+        toast.warning(`Pulled ${total} signals. Errors: ${result.errors.join(", ")}`);
+      } else {
+        toast.success(`Pulled ${total} signals — ${result.volumes} volume, ${result.trends} trend`);
+      }
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Pull failed");
+    } finally {
+      setPulling(false);
+    }
+  }
   }
 
   if (isLoading || !client) {
