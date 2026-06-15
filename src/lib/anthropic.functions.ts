@@ -168,3 +168,62 @@ Return only the system prompt text. No preamble.`;
     });
     return { prompt: text.trim() };
   });
+
+/** Generate buyer persona suggestions from client context. */
+export const generatePersonaSuggestions = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        name: z.string(),
+        market_geography: z.string(),
+        keywords: z.array(z.string()).default([]),
+        competitors: z.array(z.string()).default([]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const keywordContext =
+      data.keywords.length > 0
+        ? `Tracked keywords: ${data.keywords.slice(0, 20).join(", ")}`
+        : "";
+    const competitorContext =
+      data.competitors.length > 0
+        ? `Known competitors: ${data.competitors.join(", ")}`
+        : "";
+
+    const user =
+      `Generate 6 distinct buyer personas for a real estate operator in the following market.\n\n` +
+      `Business: ${data.name}\n` +
+      `Market: ${data.market_geography}\n` +
+      `${keywordContext}\n` +
+      `${competitorContext}\n\n` +
+      `Requirements:\n` +
+      `- Cover diverse buyer types: investors, end-users, NRI buyers, local upgraders, retirees, remote workers\n` +
+      `- Each persona must be specific to this market geography and real buyer motivations\n` +
+      `- Hook lines should be punchy, specific, and in Hinglish where appropriate\n` +
+      `- Make each persona genuinely distinct — different city of origin, different trigger, different life stage\n\n` +
+      `Return ONLY a JSON array of exactly 6 objects. Each object must have exactly these 4 keys:\n` +
+      `{\n` +
+      `  "name": "Short label like 'The Delhi NCR Upgrader' or 'The Chandigarh Investor'",\n` +
+      `  "location": "Primary city or region this buyer comes from",\n` +
+      `  "trigger": "Their main purchase motivation in one sentence",\n` +
+      `  "hook": "A compelling hook line that resonates with this buyer — in their language"\n` +
+      `}\n\n` +
+      `No preamble. No markdown. Raw JSON array only.`;
+
+    const raw = await callClaude({
+      system:
+        "You generate precise, specific buyer persona profiles for real estate market intelligence systems. You return only valid JSON arrays. No commentary, no markdown fences.",
+      user,
+      maxTokens: 1200,
+    });
+    const cleaned = stripFences(raw);
+    let personas: Array<{ name: string; location: string; trigger: string; hook: string }> = [];
+    try {
+      personas = JSON.parse(cleaned);
+      if (!Array.isArray(personas)) personas = [];
+    } catch {
+      personas = [];
+    }
+    return { personas };
+  });

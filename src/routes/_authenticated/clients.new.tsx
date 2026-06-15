@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { TagInput } from "@/components/TagInput";
@@ -13,9 +13,12 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { generateDefaultSystemPrompt } from "@/lib/anthropic.functions";
+import {
+  generateDefaultSystemPrompt,
+  generatePersonaSuggestions,
+} from "@/lib/anthropic.functions";
 import type { BuyerPersona } from "@/lib/terrain-types";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Check, Pencil, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/clients/new")({
   component: NewClient,
@@ -24,6 +27,7 @@ export const Route = createFileRoute("/_authenticated/clients/new")({
 function NewClient() {
   const navigate = useNavigate();
   const genPrompt = useServerFn(generateDefaultSystemPrompt);
+  const genPersonas = useServerFn(generatePersonaSuggestions);
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -37,20 +41,90 @@ function NewClient() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [competitors, setCompetitors] = useState<string[]>([]);
   const [gscUrl, setGscUrl] = useState("");
-  const [personas, setPersonas] = useState<BuyerPersona[]>([]);
+
+  // Step 3 — persona suggestions
+  const [suggestions, setSuggestions] = useState<BuyerPersona[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<BuyerPersona | null>(null);
+  const [customPersonas, setCustomPersonas] = useState<BuyerPersona[]>([]);
+  const [loadingPersonas, setLoadingPersonas] = useState(false);
 
   const [systemPrompt, setSystemPrompt] = useState("");
   const [genBusy, setGenBusy] = useState(false);
 
-  function addPersona() {
-    setPersonas([...personas, { name: "", location: "", trigger: "", hook: "" }]);
+  // Auto-generate personas when entering Step 3
+  useEffect(() => {
+    if (step !== 3) return;
+    if (suggestions.length > 0 || loadingPersonas) return;
+    void loadPersonaSuggestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  async function loadPersonaSuggestions() {
+    setLoadingPersonas(true);
+    try {
+      const res = await genPersonas({
+        data: { name, market_geography: market, keywords, competitors },
+      });
+      setSuggestions(res.personas);
+      setSelectedIndices(new Set(res.personas.map((_, i) => i)));
+    } catch {
+      toast.error("Could not generate persona suggestions. Add your own below.");
+    } finally {
+      setLoadingPersonas(false);
+    }
   }
-  function updatePersona(i: number, patch: Partial<BuyerPersona>) {
-    setPersonas(personas.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+
+  function toggleSuggestion(i: number) {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
   }
-  function removePersona(i: number) {
-    setPersonas(personas.filter((_, idx) => idx !== i));
+
+  function startEdit(i: number, persona: BuyerPersona) {
+    setEditingIndex(i);
+    setEditDraft({ ...persona });
   }
+
+  function cancelEdit() {
+    setEditingIndex(null);
+    setEditDraft(null);
+  }
+
+  function saveEdit() {
+    if (editDraft === null || editingIndex === null) return;
+    if (editingIndex < suggestions.length) {
+      setSuggestions((prev) => prev.map((p, idx) => (idx === editingIndex ? editDraft : p)));
+    } else {
+      const ci = editingIndex - suggestions.length;
+      setCustomPersonas((prev) => prev.map((p, idx) => (idx === ci ? editDraft : p)));
+    }
+    setEditingIndex(null);
+    setEditDraft(null);
+  }
+
+  function addCustomPersona() {
+    const blank: BuyerPersona = { name: "", location: "", trigger: "", hook: "" };
+    setCustomPersonas((prev) => [...prev, blank]);
+    setEditingIndex(suggestions.length + customPersonas.length);
+    setEditDraft(blank);
+  }
+
+  function removeCustomPersona(ci: number) {
+    setCustomPersonas((prev) => prev.filter((_, idx) => idx !== ci));
+    if (editingIndex === suggestions.length + ci) cancelEdit();
+  }
+
+  // Final personas (selected suggestions + non-empty customs)
+  const personas: BuyerPersona[] = [
+    ...suggestions.filter((_, i) => selectedIndices.has(i)),
+    ...customPersonas.filter((p) => p.name.trim().length > 0),
+  ];
+
 
   async function handleGenPrompt() {
     if (!name || !market) { toast.error("Fill name and market first"); return; }
@@ -173,32 +247,179 @@ function NewClient() {
 
         {step === 3 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Add key buyer personas — Claude uses these to target content recommendations.</p>
-              <Button variant="outline" size="sm" onClick={addPersona}>
-                <Plus className="h-3 w-3 mr-1" /> Add Persona
-              </Button>
-            </div>
-            {personas.length === 0 ? (
-              <div className="terr-elevated p-8 text-center text-sm text-muted-foreground">No personas yet.</div>
-            ) : personas.map((p, i) => (
-              <div key={i} className="terr-elevated p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="terr-label">Persona #{i + 1}</span>
-                  <button onClick={() => removePersona(i)} className="text-muted-foreground hover:text-danger">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Name (e.g. Chandigarh Investor)" value={p.name} onChange={(e) => updatePersona(i, { name: e.target.value })} />
-                  <Input placeholder="Location" value={p.location} onChange={(e) => updatePersona(i, { location: e.target.value })} />
-                </div>
-                <Input placeholder="Trigger (e.g. Delhi AQI spike)" value={p.trigger} onChange={(e) => updatePersona(i, { trigger: e.target.value })} />
-                <Input placeholder="Hook line" value={p.hook} onChange={(e) => updatePersona(i, { hook: e.target.value })} />
+            {loadingPersonas && (
+              <div className="py-12 text-center space-y-2">
+                <div className="text-3xl animate-pulse">🧠</div>
+                <p className="text-sm font-medium">Researching buyer personas for {market}...</p>
+                <p className="text-xs text-muted-foreground">Claude is generating suggestions based on the market</p>
               </div>
-            ))}
+            )}
+
+            {!loadingPersonas && (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Suggested personas — uncheck any that don't fit, edit inline, or add your own.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={loadPersonaSuggestions} title="Regenerate">
+                      <RefreshCw className="h-3 w-3 mr-1" /> Regenerate
+                    </Button>
+                  </div>
+                </div>
+
+                {suggestions.length === 0 && (
+                  <div className="terr-elevated p-6 text-center text-sm text-muted-foreground">
+                    No suggestions yet.{" "}
+                    <Button variant="outline" size="sm" onClick={loadPersonaSuggestions}>Try again</Button>
+                  </div>
+                )}
+
+                {suggestions.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {suggestions.map((persona, i) => {
+                      const isSelected = selectedIndices.has(i);
+                      const isEditing = editingIndex === i;
+                      return (
+                        <div
+                          key={i}
+                          className={`terr-elevated p-4 rounded-sm border transition-all ${
+                            isSelected ? "border-primary bg-primary/5" : "border-border opacity-50"
+                          }`}
+                        >
+                          {isEditing && editDraft ? (
+                            <div className="space-y-2">
+                              <Input
+                                value={editDraft.name}
+                                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                                placeholder="Persona name"
+                              />
+                              <Input
+                                value={editDraft.location}
+                                onChange={(e) => setEditDraft({ ...editDraft, location: e.target.value })}
+                                placeholder="Location"
+                              />
+                              <Input
+                                value={editDraft.trigger}
+                                onChange={(e) => setEditDraft({ ...editDraft, trigger: e.target.value })}
+                                placeholder="Trigger"
+                              />
+                              <Input
+                                value={editDraft.hook}
+                                onChange={(e) => setEditDraft({ ...editDraft, hook: e.target.value })}
+                                placeholder="Hook line"
+                              />
+                              <div className="flex gap-2 justify-end pt-1">
+                                <Button variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>
+                                <Button size="sm" onClick={saveEdit}>Save</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="cursor-pointer" onClick={() => toggleSuggestion(i)}>
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-start gap-2">
+                                  <div
+                                    className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 mt-0.5 ${
+                                      isSelected ? "bg-primary border-primary" : "border-border"
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium">{persona.name}</p>
+                                    <p className="text-xs text-muted-foreground">{persona.location}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); startEdit(i, persona); }}
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{persona.trigger}</p>
+                              {persona.hook && (
+                                <p className="text-xs text-accent italic mt-1">"{persona.hook}"</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Custom personas */}
+                {customPersonas.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <p className="terr-label">Custom personas</p>
+                    {customPersonas.map((persona, ci) => {
+                      const globalIndex = suggestions.length + ci;
+                      const isEditing = editingIndex === globalIndex;
+                      return (
+                        <div key={ci} className="terr-elevated p-4 rounded-sm border border-accent/30">
+                          {isEditing && editDraft ? (
+                            <div className="space-y-2">
+                              <Input
+                                value={editDraft.name}
+                                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                                placeholder="Persona name"
+                              />
+                              <Input
+                                value={editDraft.location}
+                                onChange={(e) => setEditDraft({ ...editDraft, location: e.target.value })}
+                                placeholder="Location"
+                              />
+                              <Input
+                                value={editDraft.trigger}
+                                onChange={(e) => setEditDraft({ ...editDraft, trigger: e.target.value })}
+                                placeholder="Trigger"
+                              />
+                              <Input
+                                value={editDraft.hook}
+                                onChange={(e) => setEditDraft({ ...editDraft, hook: e.target.value })}
+                                placeholder="Hook line"
+                              />
+                              <div className="flex gap-2 justify-end pt-1">
+                                <Button variant="ghost" size="sm" onClick={() => removeCustomPersona(ci)}>Remove</Button>
+                                <Button variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>
+                                <Button size="sm" onClick={saveEdit}>Save</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="text-sm font-medium">{persona.name || "Unnamed persona"}</p>
+                                <p className="text-xs text-muted-foreground">{persona.location}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{persona.trigger}</p>
+                                {persona.hook && (
+                                  <p className="text-xs text-accent italic mt-1">"{persona.hook}"</p>
+                                )}
+                              </div>
+                              <div className="flex gap-1">
+                                <button onClick={() => startEdit(globalIndex, persona)} className="text-muted-foreground hover:text-foreground">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => removeCustomPersona(ci)} className="text-muted-foreground hover:text-danger">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Button variant="outline" size="sm" onClick={addCustomPersona}>
+                  <Plus className="h-3 w-3 mr-1" /> Add custom persona
+                </Button>
+              </>
+            )}
           </div>
         )}
+
 
         {step === 4 && (
           <div className="space-y-4">
