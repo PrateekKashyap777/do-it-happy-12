@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { MapPin } from "lucide-react";
+import { MapPin, RefreshCw } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
 } from "recharts";
 import { generateBrief } from "@/lib/anthropic.functions";
+import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
 import { currentWeekMonday, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
   Client, Signal, Brief, SignalType,
