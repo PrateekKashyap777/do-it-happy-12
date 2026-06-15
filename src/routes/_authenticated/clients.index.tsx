@@ -19,7 +19,7 @@ function ClientsList() {
       ]);
       if (c.error) throw c.error;
       if (b.error) throw b.error;
-      return { clients: (c.data ?? []) as Client[], briefs: (b.data ?? []) as Brief[] };
+      return { clients: (c.data ?? []) as unknown as Client[], briefs: (b.data ?? []) as unknown as Brief[] };
     },
   });
 

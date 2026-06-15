@@ -32,9 +32,9 @@ function Dashboard() {
       if (signalsRes.error) throw signalsRes.error;
       if (briefsRes.error) throw briefsRes.error;
       return {
-        clients: (clientsRes.data ?? []) as Client[],
-        signals: (signalsRes.data ?? []) as Signal[],
-        briefs: (briefsRes.data ?? []) as Brief[],
+        clients: (clientsRes.data ?? []) as unknown as Client[],
+        signals: (signalsRes.data ?? []) as unknown as Signal[],
+        briefs: (briefsRes.data ?? []) as unknown as Brief[],
       };
     },
   });
@@ -76,7 +76,7 @@ function Dashboard() {
           client_id: clientId,
           week_date: week,
           status: "review",
-          content,
+          content: content as unknown as Record<string, unknown>,
           prompt_used,
           signal_count: clientSignals.length,
           generated_at: new Date().toISOString(),
