@@ -55,10 +55,12 @@ function ClientDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const genBrief = useServerFn(generateBrief);
+  const pullData = useServerFn(pullLiveKeywordData);
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [pulling, setPulling] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["client-detail", id, week],
