@@ -135,7 +135,8 @@ ${signalBlock}
 Respond ONLY with raw JSON: ${shape}. No code fences. No commentary.`;
 
     const raw = await callClaude({ system, user, maxTokens: 1200 });
-    const cleaned = stripFences(raw);
+    const cleaned = extractJSON(raw);
+
     if (isArray) {
       try {
         const parsed = JSON.parse(cleaned) as ContentRecommendation[];
