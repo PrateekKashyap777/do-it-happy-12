@@ -391,7 +391,7 @@ export const discoverKeywords = createServerFn({ method: "POST" })
 
     let themeMap: Record<string, string[]> = {};
     try {
-      const parsed = JSON.parse(stripJsonFence(groupRaw));
+      const parsed = JSON.parse(extractJSON(groupRaw));
       if (parsed && typeof parsed === "object") themeMap = parsed as Record<string, string[]>;
     } catch {
       themeMap = { "All Keywords": forGrouping.map((k) => k.keyword) };
