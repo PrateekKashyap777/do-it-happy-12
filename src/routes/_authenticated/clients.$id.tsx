@@ -166,7 +166,6 @@ function ClientDetail() {
       setPulling(false);
     }
   }
-  }
 
   if (isLoading || !client) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading client...</div></AppShell>;
