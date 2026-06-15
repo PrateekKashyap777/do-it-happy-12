@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { MapPin } from "lucide-react";
+import { MapPin, RefreshCw } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
 } from "recharts";
 import { generateBrief } from "@/lib/anthropic.functions";
+import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
 import { currentWeekMonday, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
   Client, Signal, Brief, SignalType,
@@ -54,10 +55,12 @@ function ClientDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const genBrief = useServerFn(generateBrief);
+  const pullData = useServerFn(pullLiveKeywordData);
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [pulling, setPulling] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["client-detail", id, week],
@@ -130,6 +133,37 @@ function ClientDetail() {
       toast.error(err instanceof Error ? `Brief generation failed — ${err.message}` : "Brief generation failed");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handlePullLiveData() {
+    if (!client) return;
+    if (!client.keywords || client.keywords.length === 0) {
+      toast.error("Add keywords to this client's config before pulling data.");
+      return;
+    }
+    setPulling(true);
+    try {
+      const result = await pullData({
+        data: {
+          clientId: client.id,
+          keywords: client.keywords,
+          weekDate: week,
+          locationCode: 2356,
+          languageCode: "en",
+        },
+      });
+      const total = result.volumes + result.trends;
+      if (result.errors.length > 0) {
+        toast.warning(`Pulled ${total} signals. Errors: ${result.errors.join(", ")}`);
+      } else {
+        toast.success(`Pulled ${total} signals — ${result.volumes} volume, ${result.trends} trend`);
+      }
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Pull failed");
+    } finally {
+      setPulling(false);
     }
   }
 
@@ -252,6 +286,31 @@ function ClientDetail() {
                 </ResponsiveContainer>
               </div>
             )}
+          </div>
+
+          <div className="terr-card p-5">
+            <div className="terr-label mb-3">Live Data</div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Pull search volumes and Google Trends for {client.keywords?.length ?? 0} keyword{client.keywords?.length === 1 ? "" : "s"} into this week.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full border-primary text-primary hover:bg-primary/10"
+              onClick={handlePullLiveData}
+              disabled={pulling || !client?.keywords?.length}
+            >
+              {pulling ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />
+                  Pulling live data...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">📡</span>
+                  Pull Live Data
+                </>
+              )}
+            </Button>
           </div>
 
           <div className="terr-card p-5">

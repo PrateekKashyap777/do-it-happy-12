@@ -1,0 +1,1 @@
+ALTER TABLE public.signals ADD CONSTRAINT signals_client_title_week_source_unique UNIQUE (client_id, title, week_date, source);
