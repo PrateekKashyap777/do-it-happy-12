@@ -247,32 +247,179 @@ function NewClient() {
 
         {step === 3 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Add key buyer personas — Claude uses these to target content recommendations.</p>
-              <Button variant="outline" size="sm" onClick={addPersona}>
-                <Plus className="h-3 w-3 mr-1" /> Add Persona
-              </Button>
-            </div>
-            {personas.length === 0 ? (
-              <div className="terr-elevated p-8 text-center text-sm text-muted-foreground">No personas yet.</div>
-            ) : personas.map((p, i) => (
-              <div key={i} className="terr-elevated p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="terr-label">Persona #{i + 1}</span>
-                  <button onClick={() => removePersona(i)} className="text-muted-foreground hover:text-danger">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Name (e.g. Chandigarh Investor)" value={p.name} onChange={(e) => updatePersona(i, { name: e.target.value })} />
-                  <Input placeholder="Location" value={p.location} onChange={(e) => updatePersona(i, { location: e.target.value })} />
-                </div>
-                <Input placeholder="Trigger (e.g. Delhi AQI spike)" value={p.trigger} onChange={(e) => updatePersona(i, { trigger: e.target.value })} />
-                <Input placeholder="Hook line" value={p.hook} onChange={(e) => updatePersona(i, { hook: e.target.value })} />
+            {loadingPersonas && (
+              <div className="py-12 text-center space-y-2">
+                <div className="text-3xl animate-pulse">🧠</div>
+                <p className="text-sm font-medium">Researching buyer personas for {market}...</p>
+                <p className="text-xs text-muted-foreground">Claude is generating suggestions based on the market</p>
               </div>
-            ))}
+            )}
+
+            {!loadingPersonas && (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Suggested personas — uncheck any that don't fit, edit inline, or add your own.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={loadPersonaSuggestions} title="Regenerate">
+                      <RefreshCw className="h-3 w-3 mr-1" /> Regenerate
+                    </Button>
+                  </div>
+                </div>
+
+                {suggestions.length === 0 && (
+                  <div className="terr-elevated p-6 text-center text-sm text-muted-foreground">
+                    No suggestions yet.{" "}
+                    <Button variant="outline" size="sm" onClick={loadPersonaSuggestions}>Try again</Button>
+                  </div>
+                )}
+
+                {suggestions.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {suggestions.map((persona, i) => {
+                      const isSelected = selectedIndices.has(i);
+                      const isEditing = editingIndex === i;
+                      return (
+                        <div
+                          key={i}
+                          className={`terr-elevated p-4 rounded-sm border transition-all ${
+                            isSelected ? "border-primary bg-primary/5" : "border-border opacity-50"
+                          }`}
+                        >
+                          {isEditing && editDraft ? (
+                            <div className="space-y-2">
+                              <Input
+                                value={editDraft.name}
+                                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                                placeholder="Persona name"
+                              />
+                              <Input
+                                value={editDraft.location}
+                                onChange={(e) => setEditDraft({ ...editDraft, location: e.target.value })}
+                                placeholder="Location"
+                              />
+                              <Input
+                                value={editDraft.trigger}
+                                onChange={(e) => setEditDraft({ ...editDraft, trigger: e.target.value })}
+                                placeholder="Trigger"
+                              />
+                              <Input
+                                value={editDraft.hook}
+                                onChange={(e) => setEditDraft({ ...editDraft, hook: e.target.value })}
+                                placeholder="Hook line"
+                              />
+                              <div className="flex gap-2 justify-end pt-1">
+                                <Button variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>
+                                <Button size="sm" onClick={saveEdit}>Save</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="cursor-pointer" onClick={() => toggleSuggestion(i)}>
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-start gap-2">
+                                  <div
+                                    className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 mt-0.5 ${
+                                      isSelected ? "bg-primary border-primary" : "border-border"
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium">{persona.name}</p>
+                                    <p className="text-xs text-muted-foreground">{persona.location}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); startEdit(i, persona); }}
+                                  className="text-muted-foreground hover:text-foreground"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{persona.trigger}</p>
+                              {persona.hook && (
+                                <p className="text-xs text-accent italic mt-1">"{persona.hook}"</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Custom personas */}
+                {customPersonas.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <p className="terr-label">Custom personas</p>
+                    {customPersonas.map((persona, ci) => {
+                      const globalIndex = suggestions.length + ci;
+                      const isEditing = editingIndex === globalIndex;
+                      return (
+                        <div key={ci} className="terr-elevated p-4 rounded-sm border border-accent/30">
+                          {isEditing && editDraft ? (
+                            <div className="space-y-2">
+                              <Input
+                                value={editDraft.name}
+                                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                                placeholder="Persona name"
+                              />
+                              <Input
+                                value={editDraft.location}
+                                onChange={(e) => setEditDraft({ ...editDraft, location: e.target.value })}
+                                placeholder="Location"
+                              />
+                              <Input
+                                value={editDraft.trigger}
+                                onChange={(e) => setEditDraft({ ...editDraft, trigger: e.target.value })}
+                                placeholder="Trigger"
+                              />
+                              <Input
+                                value={editDraft.hook}
+                                onChange={(e) => setEditDraft({ ...editDraft, hook: e.target.value })}
+                                placeholder="Hook line"
+                              />
+                              <div className="flex gap-2 justify-end pt-1">
+                                <Button variant="ghost" size="sm" onClick={() => removeCustomPersona(ci)}>Remove</Button>
+                                <Button variant="ghost" size="sm" onClick={cancelEdit}>Cancel</Button>
+                                <Button size="sm" onClick={saveEdit}>Save</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="text-sm font-medium">{persona.name || "Unnamed persona"}</p>
+                                <p className="text-xs text-muted-foreground">{persona.location}</p>
+                                <p className="text-xs text-muted-foreground mt-1">{persona.trigger}</p>
+                                {persona.hook && (
+                                  <p className="text-xs text-accent italic mt-1">"{persona.hook}"</p>
+                                )}
+                              </div>
+                              <div className="flex gap-1">
+                                <button onClick={() => startEdit(globalIndex, persona)} className="text-muted-foreground hover:text-foreground">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => removeCustomPersona(ci)} className="text-muted-foreground hover:text-danger">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <Button variant="outline" size="sm" onClick={addCustomPersona}>
+                  <Plus className="h-3 w-3 mr-1" /> Add custom persona
+                </Button>
+              </>
+            )}
           </div>
         )}
+
 
         {step === 4 && (
           <div className="space-y-4">
