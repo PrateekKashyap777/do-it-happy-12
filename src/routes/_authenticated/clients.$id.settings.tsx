@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import type { Client, BuyerPersona } from "@/lib/terrain-types";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Sparkles } from "lucide-react";
+import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
 
 export const Route = createFileRoute("/_authenticated/clients/$id/settings")({
   component: ClientSettings,
@@ -29,6 +30,7 @@ function ClientSettings() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<Client | null>(null);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["client", id],
@@ -135,7 +137,21 @@ function ClientSettings() {
         </Section>
 
         <Section title="Intelligence Config">
-          <Field label="Keywords"><TagInput value={form.keywords} onChange={(v) => patch({ keywords: v })} placeholder="Add a keyword" /></Field>
+          <Field label="Keywords">
+            <div className="space-y-2">
+              <TagInput value={form.keywords} onChange={(v) => patch({ keywords: v })} placeholder="Add a keyword" />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDiscoverOpen(true)}
+                className="border-primary text-primary hover:bg-primary/10"
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                Discover Keywords
+              </Button>
+            </div>
+          </Field>
           <Field label="Competitors"><TagInput value={form.competitors} onChange={(v) => patch({ competitors: v })} placeholder="Add a competitor" /></Field>
           <Field label="GSC Property URL"><Input value={form.gsc_property_url} onChange={(e) => patch({ gsc_property_url: e.target.value })} /></Field>
         </Section>
@@ -179,6 +195,25 @@ function ClientSettings() {
           </div>
         </div>
       </div>
+
+      <KeywordDiscoveryModal
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        client={{
+          id: form.id,
+          name: form.name,
+          market_geography: form.market_geography,
+          buyer_personas: form.buyer_personas,
+          keywords: form.keywords,
+          gsc_property_url: form.gsc_property_url,
+        }}
+        onSaved={() => {
+          // Reload client to pick up newly added keywords
+          void supabase.from("clients").select("*").eq("id", id).single().then(({ data: fresh }) => {
+            if (fresh) setForm(fresh as unknown as Client);
+          });
+        }}
+      />
     </AppShell>
   );
 }
