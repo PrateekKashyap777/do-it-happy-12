@@ -317,11 +317,12 @@ export const discoverKeywords = createServerFn({ method: "POST" })
 
     let seeds: string[] = [];
     try {
-      const parsed = JSON.parse(stripJsonFence(seedRaw));
+      const parsed = JSON.parse(extractJSON(seedRaw));
       if (Array.isArray(parsed)) seeds = parsed.filter((s): s is string => typeof s === "string");
     } catch {
-      seeds = [];
+      throw new Error(`Seed generation failed — Claude returned: ${seedRaw.slice(0, 200)}`);
     }
+
     seeds = seeds.slice(0, 15);
     if (seeds.length === 0) return { keywords: [] as DiscoveredKeyword[], themes: [] as string[], seeds: [] as string[] };
 
