@@ -133,6 +133,7 @@ function ClientDetail() {
       toast.error(err instanceof Error ? `Brief generation failed — ${err.message}` : "Brief generation failed");
     } finally {
       setGenerating(false);
+    }
   }
 
   async function handlePullLiveData() {
