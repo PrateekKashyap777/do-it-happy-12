@@ -5,12 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { AddSignalModal } from "@/components/AddSignalModal";
+import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { MapPin, RefreshCw } from "lucide-react";
+import { MapPin, RefreshCw, Sparkles } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
 } from "recharts";
