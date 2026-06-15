@@ -80,14 +80,15 @@ ${signalBlock}
 
 Respond ONLY with the JSON object. No code fences. No commentary.`;
 
-    const raw = await callClaude({ system, user, maxTokens: 2500 });
-    const cleaned = stripFences(raw);
+    const raw = await callClaude({ system, user, maxTokens: 4000 });
+    const cleaned = extractJSON(raw);
     let content: BriefContent;
     try {
       content = JSON.parse(cleaned) as BriefContent;
     } catch (e) {
-      throw new Error("Claude returned invalid JSON. Try again or add more signals.");
+      throw new Error(`Claude returned invalid JSON. Raw response preview: ${raw.slice(0, 200)}`);
     }
+
     return { content, prompt_used: user };
   });
 
