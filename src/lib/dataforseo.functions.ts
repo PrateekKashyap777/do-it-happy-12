@@ -230,3 +230,212 @@ export const pullLiveKeywordData = createServerFn({ method: "POST" })
 
     return { volumes, trends, errors };
   });
+
+// ─── KEYWORD DISCOVERY ───────────────────────────────────────────────────────
+export interface DiscoveredKeyword {
+  keyword: string;
+  volume: number | null;
+  competition_level: string | null;
+  cpc: number | null;
+  theme: string;
+}
+
+function stripJsonFence(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+}
+
+async function claudeJSON(apiKey: string, system: string, user: string, maxTokens: number): Promise<string> {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: "user", content: user }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Claude error ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const json = (await res.json()) as { content?: Array<{ text?: string }> };
+  return json.content?.[0]?.text ?? "";
+}
+
+export const discoverKeywords = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      clientId: z.string(),
+      name: z.string(),
+      market_geography: z.string(),
+      buyer_personas: z.array(z.any()).default([]),
+      existing_keywords: z.array(z.string()).default([]),
+      website_url: z.string().default(""),
+      location_code: z.number().default(2356),
+      language_code: z.string().default("en"),
+      min_volume: z.number().default(50),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) throw new Error("Missing ANTHROPIC_API_KEY");
+
+    const personaNames = (data.buyer_personas as Array<{ name?: string }>)
+      .map((p) => p?.name)
+      .filter(Boolean)
+      .join(", ");
+
+    // ── STEP 1: Claude generates seed keywords ──────────────────────────────
+    const seedRaw = await claudeJSON(
+      anthropicKey,
+      "You generate real estate search keyword seeds for Google Ads keyword research. " +
+        "Return ONLY a JSON array of strings — 12 to 15 short seed terms (2-4 words each). " +
+        "No preamble, no markdown, no explanations.",
+      `Generate seed keywords for a real estate operator in ${data.market_geography}.\n` +
+        `Business: ${data.name}\n` +
+        `Buyer types: ${personaNames || "residential and investment buyers"}\n` +
+        `Existing keywords to avoid duplicating: ${data.existing_keywords.slice(0, 10).join(", ") || "none"}\n\n` +
+        `Focus on: property type terms, location terms, buyer intent terms, comparison terms ` +
+        `(e.g. flat vs plot), trust/regulatory terms (RERA, verified), and lifestyle terms relevant to this market.`,
+      400,
+    );
+
+    let seeds: string[] = [];
+    try {
+      const parsed = JSON.parse(stripJsonFence(seedRaw));
+      if (Array.isArray(parsed)) seeds = parsed.filter((s): s is string => typeof s === "string");
+    } catch {
+      seeds = [];
+    }
+    seeds = seeds.slice(0, 15);
+    if (seeds.length === 0) return { keywords: [] as DiscoveredKeyword[], themes: [] as string[], seeds: [] as string[] };
+
+    // ── STEP 2: DataForSEO expands seeds into related keywords ──────────────
+    const allRelated: string[] = [];
+    const batches: string[][] = [];
+    for (let i = 0; i < seeds.length; i += 3) batches.push(seeds.slice(i, i + 3));
+
+    for (const batch of batches) {
+      try {
+        const result = (await dfsPost("/keywords_data/google_ads/keywords_for_keywords/live", [
+          {
+            keywords: batch,
+            location_code: data.location_code,
+            language_code: data.language_code,
+            limit: 50,
+          },
+        ])) as Array<{ keyword?: string }>;
+        (result ?? []).forEach((item) => {
+          if (item?.keyword && !allRelated.includes(item.keyword)) allRelated.push(item.keyword);
+        });
+      } catch {
+        // continue on batch failure
+      }
+    }
+    seeds.forEach((s) => { if (!allRelated.includes(s)) allRelated.push(s); });
+
+    const existingSet = new Set(data.existing_keywords.map((k) => k.toLowerCase()));
+    const candidates = allRelated.filter((k) => !existingSet.has(k.toLowerCase())).slice(0, 200);
+    if (candidates.length === 0) return { keywords: [], themes: [], seeds };
+
+    // ── STEP 3: Get volumes and filter ──────────────────────────────────────
+    let volumeData: Array<{
+      keyword: string;
+      search_volume: number | null;
+      competition_level: string | null;
+      cpc: number | null;
+    }> = [];
+    try {
+      volumeData = (await dfsPost("/keywords_data/google_ads/search_volume/live", [
+        { keywords: candidates, location_code: data.location_code, language_code: data.language_code },
+      ])) as typeof volumeData;
+    } catch {
+      volumeData = candidates.map((k) => ({ keyword: k, search_volume: null, competition_level: null, cpc: null }));
+    }
+
+    const filtered = volumeData.filter(
+      (item) => item.search_volume === null || (item.search_volume ?? 0) >= data.min_volume,
+    );
+    if (filtered.length === 0) return { keywords: [], themes: [], seeds };
+
+    // ── STEP 4: Claude groups into themes ──────────────────────────────────
+    const forGrouping = filtered.slice(0, 80);
+    const keywordList = forGrouping
+      .map((k) => `${k.keyword} (${k.search_volume ?? "unknown"}/mo)`)
+      .join("\n");
+
+    const groupRaw = await claudeJSON(
+      anthropicKey,
+      "You group real estate search keywords into logical themes for a marketing intelligence tool. " +
+        "Return ONLY a JSON object where each key is a theme name (3-5 words, title case) and each value is an array of keyword strings from the input list. " +
+        "Use 4-8 themes. Every keyword must appear in exactly one theme. No preamble, no markdown.",
+      `Group these keywords into themes for a real estate operator in ${data.market_geography}:\n\n${keywordList}`,
+      1200,
+    );
+
+    let themeMap: Record<string, string[]> = {};
+    try {
+      const parsed = JSON.parse(stripJsonFence(groupRaw));
+      if (parsed && typeof parsed === "object") themeMap = parsed as Record<string, string[]>;
+    } catch {
+      themeMap = { "All Keywords": forGrouping.map((k) => k.keyword) };
+    }
+
+    // Build keyword → theme lookup; assign unmatched to a fallback theme
+    const keywordToTheme = new Map<string, string>();
+    Object.entries(themeMap).forEach(([theme, kws]) => {
+      (kws ?? []).forEach((kw) => { if (typeof kw === "string") keywordToTheme.set(kw.toLowerCase(), theme); });
+    });
+
+    const volumeLookup = new Map(filtered.map((v) => [v.keyword.toLowerCase(), v]));
+    const keywords: DiscoveredKeyword[] = forGrouping.map((item) => ({
+      keyword: item.keyword,
+      volume: item.search_volume,
+      competition_level: item.competition_level,
+      cpc: item.cpc,
+      theme: keywordToTheme.get(item.keyword.toLowerCase()) ?? "Other",
+    }));
+
+    // Keep theme order from Claude's response, append "Other" if used
+    const themes = Object.keys(themeMap);
+    if (keywords.some((k) => k.theme === "Other") && !themes.includes("Other")) themes.push("Other");
+    // Only include themes that actually have keywords
+    const usedThemes = themes.filter((t) => keywords.some((k) => k.theme === t));
+
+    void volumeLookup; // reserved for future enrichment
+    return { keywords, themes: usedThemes, seeds };
+  });
+
+// ─── SAVE KEYWORDS TO CLIENT ─────────────────────────────────────────────────
+export const addKeywordsToClient = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      clientId: z.string(),
+      newKeywords: z.array(z.string()).min(1),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: client, error: readErr } = await supabaseAdmin
+      .from("clients")
+      .select("keywords")
+      .eq("id", data.clientId)
+      .single();
+    if (readErr) throw new Error(readErr.message);
+
+    const existing = (client?.keywords ?? []) as string[];
+    const existingLower = new Set(existing.map((k) => k.toLowerCase()));
+    const toAdd = data.newKeywords.filter((k) => !existingLower.has(k.toLowerCase()));
+    const merged = [...existing, ...toAdd];
+
+    const { error: writeErr } = await supabaseAdmin
+      .from("clients")
+      .update({ keywords: merged })
+      .eq("id", data.clientId);
+    if (writeErr) throw new Error(writeErr.message);
+
+    return { added: toAdd.length, total: merged.length };
+  });
+
