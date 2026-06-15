@@ -84,6 +84,7 @@ export type Database = {
           keywords: string[]
           market_geography: string
           name: string
+          owner_id: string
           status: string
           system_prompt: string
           updated_at: string
@@ -101,6 +102,7 @@ export type Database = {
           keywords?: string[]
           market_geography: string
           name: string
+          owner_id?: string
           status?: string
           system_prompt?: string
           updated_at?: string
@@ -118,6 +120,7 @@ export type Database = {
           keywords?: string[]
           market_geography?: string
           name?: string
+          owner_id?: string
           status?: string
           system_prompt?: string
           updated_at?: string
