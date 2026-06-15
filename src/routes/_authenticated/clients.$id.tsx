@@ -313,6 +313,15 @@ function ClientDetail() {
                 </>
               )}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full mt-2 border-primary text-primary hover:bg-primary/10"
+              onClick={() => setDiscoverOpen(true)}
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-2" />
+              Discover Keywords
+            </Button>
           </div>
 
           <div className="terr-card p-5">
