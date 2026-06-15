@@ -100,7 +100,7 @@ function NewClient() {
   }
 
   const canNext1 = name.trim() && market.trim();
-  const canNext2 = keywords.length > 0;
+  const canNext2 = true;
 
   return (
     <AppShell>
@@ -159,7 +159,7 @@ function NewClient() {
 
         {step === 2 && (
           <div className="space-y-5">
-            <Field label="Keywords to track *" hint="Add 15–30 keywords relevant to your client's market.">
+            <Field label="Keywords to track" hint="Optional — auto-discover keywords after creating the client using the Discover Keywords button on the client page.">
               <TagInput value={keywords} onChange={setKeywords} placeholder="e.g. flats in Dehradun" />
             </Field>
             <Field label="Competitors to monitor">
