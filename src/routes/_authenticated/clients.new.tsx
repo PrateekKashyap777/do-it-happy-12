@@ -100,7 +100,7 @@ function NewClient() {
   }
 
   const canNext1 = name.trim() && market.trim();
-  const canNext2 = keywords.length > 0;
+  const canNext2 = true;
 
   return (
     <AppShell>
