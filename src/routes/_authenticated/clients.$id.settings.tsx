@@ -195,6 +195,25 @@ function ClientSettings() {
           </div>
         </div>
       </div>
+
+      <KeywordDiscoveryModal
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        client={{
+          id: form.id,
+          name: form.name,
+          market_geography: form.market_geography,
+          buyer_personas: form.buyer_personas,
+          keywords: form.keywords,
+          gsc_property_url: form.gsc_property_url,
+        }}
+        onSaved={() => {
+          // Reload client to pick up newly added keywords
+          void supabase.from("clients").select("*").eq("id", id).single().then(({ data: fresh }) => {
+            if (fresh) setForm(fresh as unknown as Client);
+          });
+        }}
+      />
     </AppShell>
   );
 }
