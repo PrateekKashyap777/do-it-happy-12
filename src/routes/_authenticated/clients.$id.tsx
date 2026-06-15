@@ -5,12 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { AddSignalModal } from "@/components/AddSignalModal";
+import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { MapPin, RefreshCw } from "lucide-react";
+import { MapPin, RefreshCw, Sparkles } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
 } from "recharts";
@@ -59,6 +60,7 @@ function ClientDetail() {
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [pulling, setPulling] = useState(false);
 
@@ -311,6 +313,15 @@ function ClientDetail() {
                 </>
               )}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full mt-2 border-primary text-primary hover:bg-primary/10"
+              onClick={() => setDiscoverOpen(true)}
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-2" />
+              Discover Keywords
+            </Button>
           </div>
 
           <div className="terr-card p-5">
@@ -365,6 +376,19 @@ function ClientDetail() {
         onOpenChange={setModal}
         clientId={client.id}
         weekDate={week}
+        onSaved={refetch}
+      />
+      <KeywordDiscoveryModal
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        client={{
+          id: client.id,
+          name: client.name,
+          market_geography: client.market_geography,
+          buyer_personas: client.buyer_personas,
+          keywords: client.keywords,
+          gsc_property_url: client.gsc_property_url,
+        }}
         onSaved={refetch}
       />
     </AppShell>
