@@ -378,6 +378,19 @@ function ClientDetail() {
         weekDate={week}
         onSaved={refetch}
       />
+      <KeywordDiscoveryModal
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        client={{
+          id: client.id,
+          name: client.name,
+          market_geography: client.market_geography,
+          buyer_personas: client.buyer_personas,
+          keywords: client.keywords,
+          gsc_property_url: client.gsc_property_url,
+        }}
+        onSaved={refetch}
+      />
     </AppShell>
   );
 }
