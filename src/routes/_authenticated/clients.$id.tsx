@@ -289,6 +289,31 @@ function ClientDetail() {
           </div>
 
           <div className="terr-card p-5">
+            <div className="terr-label mb-3">Live Data</div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Pull search volumes and Google Trends for {client.keywords?.length ?? 0} keyword{client.keywords?.length === 1 ? "" : "s"} into this week.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full border-primary text-primary hover:bg-primary/10"
+              onClick={handlePullLiveData}
+              disabled={pulling || !client?.keywords?.length}
+            >
+              {pulling ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />
+                  Pulling live data...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">📡</span>
+                  Pull Live Data
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="terr-card p-5">
             <div className="terr-label mb-3">Brief Status</div>
             {currentBrief ? (
               <div>
