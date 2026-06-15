@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { TagInput } from "@/components/TagInput";
@@ -13,9 +13,12 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { generateDefaultSystemPrompt } from "@/lib/anthropic.functions";
+import {
+  generateDefaultSystemPrompt,
+  generatePersonaSuggestions,
+} from "@/lib/anthropic.functions";
 import type { BuyerPersona } from "@/lib/terrain-types";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Check, Pencil, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/clients/new")({
   component: NewClient,
@@ -24,6 +27,7 @@ export const Route = createFileRoute("/_authenticated/clients/new")({
 function NewClient() {
   const navigate = useNavigate();
   const genPrompt = useServerFn(generateDefaultSystemPrompt);
+  const genPersonas = useServerFn(generatePersonaSuggestions);
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -37,20 +41,90 @@ function NewClient() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [competitors, setCompetitors] = useState<string[]>([]);
   const [gscUrl, setGscUrl] = useState("");
-  const [personas, setPersonas] = useState<BuyerPersona[]>([]);
+
+  // Step 3 — persona suggestions
+  const [suggestions, setSuggestions] = useState<BuyerPersona[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<BuyerPersona | null>(null);
+  const [customPersonas, setCustomPersonas] = useState<BuyerPersona[]>([]);
+  const [loadingPersonas, setLoadingPersonas] = useState(false);
 
   const [systemPrompt, setSystemPrompt] = useState("");
   const [genBusy, setGenBusy] = useState(false);
 
-  function addPersona() {
-    setPersonas([...personas, { name: "", location: "", trigger: "", hook: "" }]);
+  // Auto-generate personas when entering Step 3
+  useEffect(() => {
+    if (step !== 3) return;
+    if (suggestions.length > 0 || loadingPersonas) return;
+    void loadPersonaSuggestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  async function loadPersonaSuggestions() {
+    setLoadingPersonas(true);
+    try {
+      const res = await genPersonas({
+        data: { name, market_geography: market, keywords, competitors },
+      });
+      setSuggestions(res.personas);
+      setSelectedIndices(new Set(res.personas.map((_, i) => i)));
+    } catch {
+      toast.error("Could not generate persona suggestions. Add your own below.");
+    } finally {
+      setLoadingPersonas(false);
+    }
   }
-  function updatePersona(i: number, patch: Partial<BuyerPersona>) {
-    setPersonas(personas.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+
+  function toggleSuggestion(i: number) {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
   }
-  function removePersona(i: number) {
-    setPersonas(personas.filter((_, idx) => idx !== i));
+
+  function startEdit(i: number, persona: BuyerPersona) {
+    setEditingIndex(i);
+    setEditDraft({ ...persona });
   }
+
+  function cancelEdit() {
+    setEditingIndex(null);
+    setEditDraft(null);
+  }
+
+  function saveEdit() {
+    if (editDraft === null || editingIndex === null) return;
+    if (editingIndex < suggestions.length) {
+      setSuggestions((prev) => prev.map((p, idx) => (idx === editingIndex ? editDraft : p)));
+    } else {
+      const ci = editingIndex - suggestions.length;
+      setCustomPersonas((prev) => prev.map((p, idx) => (idx === ci ? editDraft : p)));
+    }
+    setEditingIndex(null);
+    setEditDraft(null);
+  }
+
+  function addCustomPersona() {
+    const blank: BuyerPersona = { name: "", location: "", trigger: "", hook: "" };
+    setCustomPersonas((prev) => [...prev, blank]);
+    setEditingIndex(suggestions.length + customPersonas.length);
+    setEditDraft(blank);
+  }
+
+  function removeCustomPersona(ci: number) {
+    setCustomPersonas((prev) => prev.filter((_, idx) => idx !== ci));
+    if (editingIndex === suggestions.length + ci) cancelEdit();
+  }
+
+  // Final personas (selected suggestions + non-empty customs)
+  const personas: BuyerPersona[] = [
+    ...suggestions.filter((_, i) => selectedIndices.has(i)),
+    ...customPersonas.filter((p) => p.name.trim().length > 0),
+  ];
+
 
   async function handleGenPrompt() {
     if (!name || !market) { toast.error("Fill name and market first"); return; }
