@@ -91,10 +91,10 @@ function BriefStudio() {
   }
 
   async function updateStatus(status: Brief["status"]) {
-    const patch: Record<string, unknown> = { status, reviewer_notes: notes, content: content as never };
+    const patch: Record<string, unknown> = { status, reviewer_notes: notes, content };
     if (status === "approved") patch.reviewed_at = new Date().toISOString();
     if (status === "sent") patch.sent_at = new Date().toISOString();
-    const { error } = await supabase.from("briefs").update(patch).eq("id", id);
+    const { error } = await supabase.from("briefs").update(patch as never).eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success(`Marked ${status}`);
     refetch();
@@ -119,7 +119,7 @@ function BriefStudio() {
 
   function copyWhatsApp() {
     const text = formatForWhatsApp(
-      { ...brief, content },
+      { ...brief, content: content as BriefContent },
       client.name,
       brief.week_date,
       client.is_white_label ? client.agency_name : undefined,

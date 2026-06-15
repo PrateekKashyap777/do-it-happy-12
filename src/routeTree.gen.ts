@@ -14,6 +14,10 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedClientsIndexRouteImport } from './routes/_authenticated/clients.index'
+import { Route as AuthenticatedClientsNewRouteImport } from './routes/_authenticated/clients.new'
+import { Route as AuthenticatedClientsIdRouteImport } from './routes/_authenticated/clients.$id'
+import { Route as AuthenticatedBriefsIdRouteImport } from './routes/_authenticated/briefs.$id'
+import { Route as AuthenticatedClientsIdSettingsRouteImport } from './routes/_authenticated/clients.$id.settings'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -40,18 +44,47 @@ const AuthenticatedClientsIndexRoute =
     path: '/clients/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedClientsNewRoute = AuthenticatedClientsNewRouteImport.update({
+  id: '/clients/new',
+  path: '/clients/new',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClientsIdRoute = AuthenticatedClientsIdRouteImport.update({
+  id: '/clients/$id',
+  path: '/clients/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBriefsIdRoute = AuthenticatedBriefsIdRouteImport.update({
+  id: '/briefs/$id',
+  path: '/briefs/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedClientsIdSettingsRoute =
+  AuthenticatedClientsIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedClientsIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/briefs/$id': typeof AuthenticatedBriefsIdRoute
+  '/clients/$id': typeof AuthenticatedClientsIdRouteWithChildren
+  '/clients/new': typeof AuthenticatedClientsNewRoute
   '/clients/': typeof AuthenticatedClientsIndexRoute
+  '/clients/$id/settings': typeof AuthenticatedClientsIdSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/briefs/$id': typeof AuthenticatedBriefsIdRoute
+  '/clients/$id': typeof AuthenticatedClientsIdRouteWithChildren
+  '/clients/new': typeof AuthenticatedClientsNewRoute
   '/clients': typeof AuthenticatedClientsIndexRoute
+  '/clients/$id/settings': typeof AuthenticatedClientsIdSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,20 +92,44 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/briefs/$id': typeof AuthenticatedBriefsIdRoute
+  '/_authenticated/clients/$id': typeof AuthenticatedClientsIdRouteWithChildren
+  '/_authenticated/clients/new': typeof AuthenticatedClientsNewRoute
   '/_authenticated/clients/': typeof AuthenticatedClientsIndexRoute
+  '/_authenticated/clients/$id/settings': typeof AuthenticatedClientsIdSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/clients/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/briefs/$id'
+    | '/clients/$id'
+    | '/clients/new'
+    | '/clients/'
+    | '/clients/$id/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/clients'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/briefs/$id'
+    | '/clients/$id'
+    | '/clients/new'
+    | '/clients'
+    | '/clients/$id/settings'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/dashboard'
+    | '/_authenticated/briefs/$id'
+    | '/_authenticated/clients/$id'
+    | '/_authenticated/clients/new'
     | '/_authenticated/clients/'
+    | '/_authenticated/clients/$id/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,16 +175,64 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/clients/new': {
+      id: '/_authenticated/clients/new'
+      path: '/clients/new'
+      fullPath: '/clients/new'
+      preLoaderRoute: typeof AuthenticatedClientsNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/clients/$id': {
+      id: '/_authenticated/clients/$id'
+      path: '/clients/$id'
+      fullPath: '/clients/$id'
+      preLoaderRoute: typeof AuthenticatedClientsIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/briefs/$id': {
+      id: '/_authenticated/briefs/$id'
+      path: '/briefs/$id'
+      fullPath: '/briefs/$id'
+      preLoaderRoute: typeof AuthenticatedBriefsIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/clients/$id/settings': {
+      id: '/_authenticated/clients/$id/settings'
+      path: '/settings'
+      fullPath: '/clients/$id/settings'
+      preLoaderRoute: typeof AuthenticatedClientsIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedClientsIdRoute
+    }
   }
 }
 
+interface AuthenticatedClientsIdRouteChildren {
+  AuthenticatedClientsIdSettingsRoute: typeof AuthenticatedClientsIdSettingsRoute
+}
+
+const AuthenticatedClientsIdRouteChildren: AuthenticatedClientsIdRouteChildren =
+  {
+    AuthenticatedClientsIdSettingsRoute: AuthenticatedClientsIdSettingsRoute,
+  }
+
+const AuthenticatedClientsIdRouteWithChildren =
+  AuthenticatedClientsIdRoute._addFileChildren(
+    AuthenticatedClientsIdRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedBriefsIdRoute: typeof AuthenticatedBriefsIdRoute
+  AuthenticatedClientsIdRoute: typeof AuthenticatedClientsIdRouteWithChildren
+  AuthenticatedClientsNewRoute: typeof AuthenticatedClientsNewRoute
   AuthenticatedClientsIndexRoute: typeof AuthenticatedClientsIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedBriefsIdRoute: AuthenticatedBriefsIdRoute,
+  AuthenticatedClientsIdRoute: AuthenticatedClientsIdRouteWithChildren,
+  AuthenticatedClientsNewRoute: AuthenticatedClientsNewRoute,
   AuthenticatedClientsIndexRoute: AuthenticatedClientsIndexRoute,
 }
 
