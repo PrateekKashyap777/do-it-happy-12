@@ -14,7 +14,166 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      briefs: {
+        Row: {
+          client_id: string
+          content: Json
+          created_at: string
+          generated_at: string | null
+          id: string
+          prompt_used: string
+          reviewed_at: string | null
+          reviewer_notes: string
+          sent_at: string | null
+          signal_count: number
+          status: string
+          updated_at: string
+          week_date: string
+        }
+        Insert: {
+          client_id: string
+          content?: Json
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          prompt_used?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string
+          sent_at?: string | null
+          signal_count?: number
+          status?: string
+          updated_at?: string
+          week_date: string
+        }
+        Update: {
+          client_id?: string
+          content?: Json
+          created_at?: string
+          generated_at?: string | null
+          id?: string
+          prompt_used?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string
+          sent_at?: string | null
+          signal_count?: number
+          status?: string
+          updated_at?: string
+          week_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "briefs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          agency_name: string
+          brief_delivery_contact: string
+          brief_delivery_method: string
+          buyer_personas: Json
+          competitors: string[]
+          created_at: string
+          gsc_property_url: string
+          id: string
+          is_white_label: boolean
+          keywords: string[]
+          market_geography: string
+          name: string
+          status: string
+          system_prompt: string
+          updated_at: string
+        }
+        Insert: {
+          agency_name?: string
+          brief_delivery_contact?: string
+          brief_delivery_method?: string
+          buyer_personas?: Json
+          competitors?: string[]
+          created_at?: string
+          gsc_property_url?: string
+          id?: string
+          is_white_label?: boolean
+          keywords?: string[]
+          market_geography: string
+          name: string
+          status?: string
+          system_prompt?: string
+          updated_at?: string
+        }
+        Update: {
+          agency_name?: string
+          brief_delivery_contact?: string
+          brief_delivery_method?: string
+          buyer_personas?: Json
+          competitors?: string[]
+          created_at?: string
+          gsc_property_url?: string
+          id?: string
+          is_white_label?: boolean
+          keywords?: string[]
+          market_geography?: string
+          name?: string
+          status?: string
+          system_prompt?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signals: {
+        Row: {
+          client_id: string
+          content: string
+          created_at: string
+          data: Json
+          id: string
+          is_included: boolean
+          signal_type: string
+          source: string
+          title: string
+          urgency: string
+          week_date: string
+        }
+        Insert: {
+          client_id: string
+          content?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          is_included?: boolean
+          signal_type: string
+          source: string
+          title: string
+          urgency?: string
+          week_date: string
+        }
+        Update: {
+          client_id?: string
+          content?: string
+          created_at?: string
+          data?: Json
+          id?: string
+          is_included?: boolean
+          signal_type?: string
+          source?: string
+          title?: string
+          urgency?: string
+          week_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
