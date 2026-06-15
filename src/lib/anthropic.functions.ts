@@ -126,13 +126,15 @@ Respond ONLY with raw JSON: ${shape}. No code fences. No commentary.`;
 
     const raw = await callClaude({ system, user, maxTokens: 1200 });
     const cleaned = stripFences(raw);
-    try {
-      return { value: JSON.parse(cleaned) };
-    } catch {
-      // For string sections, accept the raw text
-      if (!isArray) return { value: cleaned };
-      throw new Error("Claude returned invalid JSON for this section.");
+    if (isArray) {
+      try {
+        const parsed = JSON.parse(cleaned) as ContentRecommendation[];
+        return { kind: "array" as const, recommendations: parsed };
+      } catch {
+        throw new Error("Claude returned invalid JSON for this section.");
+      }
     }
+    return { kind: "string" as const, text: cleaned };
   });
 
 /** Generate a default system prompt for a new client. */
