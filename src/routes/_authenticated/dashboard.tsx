@@ -76,7 +76,7 @@ function Dashboard() {
           client_id: clientId,
           week_date: week,
           status: "review",
-          content: content as unknown as Record<string, unknown>,
+          content: content as never,
           prompt_used,
           signal_count: clientSignals.length,
           generated_at: new Date().toISOString(),
