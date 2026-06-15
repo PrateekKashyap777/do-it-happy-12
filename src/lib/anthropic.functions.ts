@@ -35,13 +35,22 @@ async function callClaude(args: {
   return data.content[0]?.text ?? "";
 }
 
-function stripFences(s: string): string {
-  return s
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
+function extractJSON(raw: string): string {
+  const s = raw.trim();
+  const firstBrace = s.indexOf('{');
+  const firstBracket = s.indexOf('[');
+  if (firstBrace === -1 && firstBracket === -1) return s;
+  let start: number;
+  let closeChar: string;
+  if (firstBrace === -1) { start = firstBracket; closeChar = ']'; }
+  else if (firstBracket === -1) { start = firstBrace; closeChar = '}'; }
+  else if (firstBrace < firstBracket) { start = firstBrace; closeChar = '}'; }
+  else { start = firstBracket; closeChar = ']'; }
+  const end = s.lastIndexOf(closeChar);
+  if (end === -1 || end < start) return s;
+  return s.slice(start, end + 1);
 }
+
 
 /** Generate a full weekly brief using Claude. */
 export const generateBrief = createServerFn({ method: "POST" })
