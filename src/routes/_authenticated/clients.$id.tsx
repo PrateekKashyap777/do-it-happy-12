@@ -60,6 +60,7 @@ function ClientDetail() {
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [pulling, setPulling] = useState(false);
 
