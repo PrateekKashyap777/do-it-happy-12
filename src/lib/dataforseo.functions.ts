@@ -240,9 +240,22 @@ export interface DiscoveredKeyword {
   theme: string;
 }
 
-function stripJsonFence(raw: string): string {
-  return raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+function extractJSON(raw: string): string {
+  const s = raw.trim();
+  const firstBrace = s.indexOf('{');
+  const firstBracket = s.indexOf('[');
+  if (firstBrace === -1 && firstBracket === -1) return s;
+  let start: number;
+  let closeChar: string;
+  if (firstBrace === -1) { start = firstBracket; closeChar = ']'; }
+  else if (firstBracket === -1) { start = firstBrace; closeChar = '}'; }
+  else if (firstBrace < firstBracket) { start = firstBrace; closeChar = '}'; }
+  else { start = firstBracket; closeChar = ']'; }
+  const end = s.lastIndexOf(closeChar);
+  if (end === -1 || end < start) return s;
+  return s.slice(start, end + 1);
 }
+
 
 async function claudeJSON(apiKey: string, system: string, user: string, maxTokens: number): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -304,11 +317,12 @@ export const discoverKeywords = createServerFn({ method: "POST" })
 
     let seeds: string[] = [];
     try {
-      const parsed = JSON.parse(stripJsonFence(seedRaw));
+      const parsed = JSON.parse(extractJSON(seedRaw));
       if (Array.isArray(parsed)) seeds = parsed.filter((s): s is string => typeof s === "string");
     } catch {
-      seeds = [];
+      throw new Error(`Seed generation failed — Claude returned: ${seedRaw.slice(0, 200)}`);
     }
+
     seeds = seeds.slice(0, 15);
     if (seeds.length === 0) return { keywords: [] as DiscoveredKeyword[], themes: [] as string[], seeds: [] as string[] };
 
@@ -377,7 +391,7 @@ export const discoverKeywords = createServerFn({ method: "POST" })
 
     let themeMap: Record<string, string[]> = {};
     try {
-      const parsed = JSON.parse(stripJsonFence(groupRaw));
+      const parsed = JSON.parse(extractJSON(groupRaw));
       if (parsed && typeof parsed === "object") themeMap = parsed as Record<string, string[]>;
     } catch {
       themeMap = { "All Keywords": forGrouping.map((k) => k.keyword) };

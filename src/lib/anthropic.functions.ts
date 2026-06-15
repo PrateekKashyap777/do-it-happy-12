@@ -35,13 +35,22 @@ async function callClaude(args: {
   return data.content[0]?.text ?? "";
 }
 
-function stripFences(s: string): string {
-  return s
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
+function extractJSON(raw: string): string {
+  const s = raw.trim();
+  const firstBrace = s.indexOf('{');
+  const firstBracket = s.indexOf('[');
+  if (firstBrace === -1 && firstBracket === -1) return s;
+  let start: number;
+  let closeChar: string;
+  if (firstBrace === -1) { start = firstBracket; closeChar = ']'; }
+  else if (firstBracket === -1) { start = firstBrace; closeChar = '}'; }
+  else if (firstBrace < firstBracket) { start = firstBrace; closeChar = '}'; }
+  else { start = firstBracket; closeChar = ']'; }
+  const end = s.lastIndexOf(closeChar);
+  if (end === -1 || end < start) return s;
+  return s.slice(start, end + 1);
 }
+
 
 /** Generate a full weekly brief using Claude. */
 export const generateBrief = createServerFn({ method: "POST" })
@@ -71,14 +80,15 @@ ${signalBlock}
 
 Respond ONLY with the JSON object. No code fences. No commentary.`;
 
-    const raw = await callClaude({ system, user, maxTokens: 2500 });
-    const cleaned = stripFences(raw);
+    const raw = await callClaude({ system, user, maxTokens: 4000 });
+    const cleaned = extractJSON(raw);
     let content: BriefContent;
     try {
       content = JSON.parse(cleaned) as BriefContent;
     } catch (e) {
-      throw new Error("Claude returned invalid JSON. Try again or add more signals.");
+      throw new Error(`Claude returned invalid JSON. Raw response preview: ${raw.slice(0, 200)}`);
     }
+
     return { content, prompt_used: user };
   });
 
@@ -125,7 +135,8 @@ ${signalBlock}
 Respond ONLY with raw JSON: ${shape}. No code fences. No commentary.`;
 
     const raw = await callClaude({ system, user, maxTokens: 1200 });
-    const cleaned = stripFences(raw);
+    const cleaned = extractJSON(raw);
+
     if (isArray) {
       try {
         const parsed = JSON.parse(cleaned) as ContentRecommendation[];
@@ -217,7 +228,7 @@ export const generatePersonaSuggestions = createServerFn({ method: "POST" })
       user,
       maxTokens: 1200,
     });
-    const cleaned = stripFences(raw);
+    const cleaned = extractJSON(raw);
     let personas: Array<{ name: string; location: string; trigger: string; hook: string }> = [];
     try {
       personas = JSON.parse(cleaned);
@@ -225,5 +236,9 @@ export const generatePersonaSuggestions = createServerFn({ method: "POST" })
     } catch {
       personas = [];
     }
+    if (personas.length === 0) {
+      throw new Error(`Persona generation failed — Claude returned: ${raw.slice(0, 200)}`);
+    }
     return { personas };
+
   });
