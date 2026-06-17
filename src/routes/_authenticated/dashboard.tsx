@@ -233,11 +233,18 @@ function SignalCountBadge({ count }: { count: number }) {
   const cls =
     count >= 5
       ? "bg-success/15 text-success"
-      : count >= 2
+      : count >= 3
         ? "bg-warning/15 text-warning"
         : "bg-danger/15 text-danger";
   return <span className={`terr-badge font-mono ${cls}`}>{count}</span>;
 }
+
+const BRIEF_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  sent: "Sent",
+};
 
 function BriefStatusBadge({ brief }: { brief?: Brief }) {
   if (!brief) return <span className="terr-badge border border-danger text-danger">Not Started</span>;
@@ -247,8 +254,9 @@ function BriefStatusBadge({ brief }: { brief?: Brief }) {
     approved: "bg-success/15 text-success",
     sent: "bg-primary/25 text-primary-foreground",
   };
-  return <span className={`terr-badge ${map[brief.status] ?? "bg-elevated"}`}>{brief.status}</span>;
+  return <span className={`terr-badge ${map[brief.status] ?? "bg-elevated"}`}>{BRIEF_STATUS_LABEL[brief.status] ?? brief.status}</span>;
 }
+
 
 function EmptyState({ title, description, cta }: { title: string; description: string; cta?: React.ReactNode }) {
   return (
