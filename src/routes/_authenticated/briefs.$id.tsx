@@ -33,6 +33,14 @@ const SECTIONS: { key: keyof BriefContent; label: string; icon: string }[] = [
   { key: "campaign_adjustment", label: "Campaign Adjustment", icon: "⚡" },
 ];
 
+const BRIEF_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  sent: "Sent",
+};
+
+
 function BriefStudio() {
   const { id } = Route.useParams();
   const regen = useServerFn(regenerateSection);
