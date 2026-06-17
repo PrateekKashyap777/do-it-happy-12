@@ -465,6 +465,25 @@ function ClientDetail() {
             </Button>
             <Button
               type="button"
+              className="w-full mt-2 bg-primary hover:bg-primary-hover"
+              onClick={handlePullAll}
+              disabled={pullingAll}
+              title="Pull keywords + news + AQI + YouTube in parallel"
+            >
+              {pullingAll ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />
+                  Pulling all sources...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">⚡</span>
+                  Pull All
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
               variant="outline"
               className="w-full mt-2 border-primary text-primary hover:bg-primary/10"
               onClick={() => setDiscoverOpen(true)}
