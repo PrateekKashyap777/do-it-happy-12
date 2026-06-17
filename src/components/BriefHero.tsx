@@ -14,6 +14,7 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
   const reraSignals = signals.filter((s) => s.signal_type === "rera").slice(0, 2);
   const buyerSignals = signals.filter((s) => s.signal_type === "buyer_behaviour");
   const aqiSignal = signals.find((s) => s.source === "aqi");
+  const newsSignals = signals.filter((s) => s.signal_type === "news").slice(0, 3);
   const recs = content.content_recommendations ?? [];
 
   const aqiData = aqiSignal?.data as Record<string, unknown> | undefined;
@@ -250,6 +251,88 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
           )}
         </div>
       </div>
+
+      {/* ── ROW 2.5: News this week ─────────────────────────────────────────── */}
+      {newsSignals.length > 0 && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-2 px-0.5">
+            <p className="text-[10px] font-medium tracking-[2px] uppercase text-muted-foreground">
+              📰 News this week
+            </p>
+            <span className="text-[10px] text-muted-foreground">
+              — what Claude read to write this brief
+            </span>
+            <span className="ml-auto text-[10px] text-muted-foreground">
+              {newsSignals.length} article{newsSignals.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {newsSignals.map((s, i) => {
+              const d = s.data as Record<string, unknown>;
+              const feedName = d.feed_source as string | undefined;
+              const url = d.url as string | undefined;
+              const publishedAt = d.published_at as string | undefined;
+              const dateStr = publishedAt
+                ? new Date(publishedAt).toLocaleDateString("en-IN", {
+                    day: "numeric", month: "short",
+                  })
+                : "";
+              // Feed source colour coding
+              const feedStyles: Record<string, { bg: string; color: string }> = {
+                "ET Real Estate": { bg: "rgba(255,102,0,0.1)", color: "#CC5500" },
+                "MagicBricks": { bg: "rgba(220,53,69,0.1)", color: "#CC1A2B" },
+                "Housing.com": { bg: "rgba(0,122,255,0.1)", color: "#0066CC" },
+                "99acres": { bg: "rgba(46,160,67,0.1)", color: "#1A7A35" },
+              };
+              const feedStyle = feedStyles[feedName ?? ""] ?? {
+                bg: "rgba(128,128,128,0.08)",
+                color: "var(--muted-foreground)",
+              };
+              return (
+                <div key={i} className="terr-elevated rounded-md p-3 border border-border flex flex-col">
+                  {/* Header: feed badge + date */}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    {feedName && (
+                      <span
+                        className="text-[9px] font-medium tracking-wider uppercase px-1.5 py-0.5 rounded-sm shrink-0"
+                        style={{ background: feedStyle.bg, color: feedStyle.color }}
+                      >
+                        {feedName}
+                      </span>
+                    )}
+                    {dateStr && (
+                      <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                        {dateStr}
+                      </span>
+                    )}
+                  </div>
+                  {/* Headline */}
+                  <p className="text-xs font-medium text-foreground leading-snug line-clamp-2 mb-1.5 flex-1">
+                    {s.title}
+                  </p>
+                  {/* Summary */}
+                  {s.content && (
+                    <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2 mb-2">
+                      {s.content}
+                    </p>
+                  )}
+                  {/* Read link */}
+                  {url && (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-accent hover:underline mt-auto"
+                    >
+                      Read full article ↗
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="terr-card p-4 mb-3">
         <p className="text-[10px] font-medium tracking-[2px] uppercase text-muted-foreground mb-3">
