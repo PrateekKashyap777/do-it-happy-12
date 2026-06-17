@@ -12,7 +12,11 @@ export type SignalSource =
   | "rss"
   | "rera_portal"
   | "manual"
-  | "n8n";
+  | "n8n"
+  | "dataforseo"
+  | "youtube"
+  | "aqi";
+
 
 export type Urgency = "high" | "medium" | "low";
 
