@@ -194,18 +194,8 @@ function BriefStudio() {
     } finally { setRegenAll(false); }
   }
 
-  // Cmd/Ctrl+S to save
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (!saving) saveDraft();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, notes, saving]);
+
+
 
 
   function copyWhatsApp() {
