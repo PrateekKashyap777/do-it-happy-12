@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { formatSignalsForPrompt } from "@/lib/terrain-utils";
-import type { Signal, Client, BriefContent, ContentRecommendation } from "@/lib/terrain-types";
+import type { Signal, Client, BriefContent, ContentRecommendation, BuyerPersona } from "@/lib/terrain-types";
 
 const MODEL = "claude-sonnet-4-6";
 const API_URL = "https://api.anthropic.com/v1/messages";
