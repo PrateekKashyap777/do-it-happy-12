@@ -4,8 +4,8 @@ import { z } from "zod";
 // ─── shared types ────────────────────────────────────────────────────────────
 type SignalRow = {
   client_id: string;
-  signal_type: "news" | "market" | "competitor";
-  source: "rss" | "aqi" | "youtube";
+  signal_type: "news" | "market" | "competitor" | "rera" | "buyer_behaviour" | "search_query";
+  source: "rss" | "aqi" | "youtube" | "manual" | "dataforseo";
   title: string;
   content: string;
   data: Record<string, unknown>;
@@ -13,6 +13,22 @@ type SignalRow = {
   week_date: string;
   is_included: boolean;
 };
+
+// ─── DataForSEO helper (inline so signals module stays self-contained) ──────
+async function dfsPost(path: string, body: unknown): Promise<unknown> {
+  const login = process.env.DATAFORSEO_LOGIN;
+  const password = process.env.DATAFORSEO_PASSWORD;
+  if (!login || !password) throw new Error("Missing DATAFORSEO_LOGIN or DATAFORSEO_PASSWORD");
+  const encoded = Buffer.from(`${login}:${password}`).toString("base64");
+  const res = await fetch(`https://api.dataforseo.com/v3${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Basic ${encoded}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`DataForSEO error ${res.status}`);
+  const json = (await res.json()) as { tasks?: Array<{ result?: unknown[] }> };
+  return json.tasks?.[0]?.result ?? [];
+}
 
 async function insertSignals(rows: SignalRow[]) {
   if (rows.length === 0) return 0;
@@ -345,4 +361,206 @@ export const pullYouTubeCompetitors = createServerFn({ method: "POST" })
       competitor_videos: rows.filter((r) => !r.data.is_market_video).length,
       market_videos: rows.filter((r) => r.data.is_market_video).length,
     };
+  });
+
+
+// ─── 4. RERA via DataForSEO SERP ─────────────────────────────────────────────
+const RERAInput = z.object({
+  clientId: z.string(),
+  market: z.string().min(1),
+  keywords: z.array(z.string()).default([]),
+  weekDate: z.string(),
+});
+
+export const pullRERASignals = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => RERAInput.parse(input))
+  .handler(async ({ data }) => {
+    const { clientId, market, weekDate } = data;
+
+    const marketLower = market.toLowerCase();
+    const stateMap: Record<string, string> = {
+      dehradun: "Uttarakhand", mussoorie: "Uttarakhand", rishikesh: "Uttarakhand",
+      haridwar: "Uttarakhand", nainital: "Uttarakhand", mumbai: "Maharashtra",
+      pune: "Maharashtra", nagpur: "Maharashtra", bangalore: "Karnataka",
+      bengaluru: "Karnataka", delhi: "Delhi", gurugram: "Haryana",
+      gurgaon: "Haryana", noida: "Uttar Pradesh", lucknow: "Uttar Pradesh",
+      hyderabad: "Telangana", chennai: "Tamil Nadu", ahmedabad: "Gujarat",
+      jaipur: "Rajasthan", chandigarh: "Punjab",
+    };
+    const stateKey = Object.keys(stateMap).find((k) => marketLower.includes(k));
+    const state = stateKey ? stateMap[stateKey] : "";
+
+    const queries = [
+      `RERA ${market} new project registration 2026`,
+      state ? `RERA ${state} complaint filing new approval 2026` : null,
+      `site:rera.uk.gov.in OR site:maharera.mahaonline.gov.in ${market} project`,
+    ].filter(Boolean) as string[];
+
+    const rows: SignalRow[] = [];
+    const seenTitles = new Set<string>();
+
+    for (const query of queries) {
+      try {
+        const body = [{
+          keyword: query,
+          language_code: "en",
+          location_code: 2356,
+          depth: 10,
+          search_type: "organic",
+        }];
+
+        const res = await dfsPost("/serp/google/organic/live/advanced", body) as Array<{
+          items?: Array<{
+            type: string;
+            title?: string;
+            description?: string;
+            url?: string;
+            domain?: string;
+            timestamp?: string;
+          }>;
+        }>;
+
+        const items = res?.[0]?.items ?? [];
+
+        for (const item of items) {
+          if (item.type !== "organic") continue;
+          const title = item.title ?? "";
+          const desc = item.description ?? "";
+          const url = item.url ?? "";
+
+          if (!title || seenTitles.has(title)) continue;
+
+          const combined = (title + " " + desc).toLowerCase();
+          const isRelevant =
+            combined.includes("rera") ||
+            combined.includes("registration") ||
+            combined.includes("project") ||
+            combined.includes("complaint") ||
+            combined.includes("approval") ||
+            combined.includes("real estate");
+
+          if (!isRelevant) continue;
+
+          seenTitles.add(title);
+          const urgency: "high" | "medium" | "low" =
+            combined.includes("complaint") || combined.includes("penalty")
+              ? "high"
+              : combined.includes("new registration") || combined.includes("approved")
+              ? "medium"
+              : "low";
+
+          rows.push({
+            client_id: clientId,
+            signal_type: "rera",
+            source: "rss",
+            title: title.slice(0, 200),
+            content: desc.slice(0, 300),
+            data: { url, domain: item.domain, query, source: "DataForSEO SERP" },
+            urgency,
+            week_date: weekDate,
+            is_included: true,
+          });
+
+          if (rows.length >= 6) break;
+        }
+      } catch {
+        // continue with next query
+      }
+      if (rows.length >= 6) break;
+    }
+
+    const inserted = await insertSignals(rows);
+    return { inserted };
+  });
+
+
+// ─── 5. BUYER BEHAVIOUR (derived from existing search_query signals) ────────
+const BuyerInput = z.object({
+  clientId: z.string(),
+  weekDate: z.string(),
+});
+
+export const pullBuyerBehaviourSignals = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => BuyerInput.parse(input))
+  .handler(async ({ data }) => {
+    const { clientId, weekDate } = data;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: searchSignals, error: readErr } = await supabaseAdmin
+      .from("signals")
+      .select("title,data")
+      .eq("client_id", clientId)
+      .eq("week_date", weekDate)
+      .eq("signal_type", "search_query");
+    if (readErr) throw new Error(readErr.message);
+
+    type SignalData = { volume?: number; week_change_pct?: number; movement_pct?: number; trends_latest?: number; ctr?: number; clicks?: number };
+    const items = (searchSignals ?? []) as Array<{ title: string; data: SignalData }>;
+
+    const rising = items.filter((s) => {
+      const d = s.data ?? {};
+      const chg = d.week_change_pct ?? d.movement_pct ?? 0;
+      return chg > 15;
+    });
+
+    const highIntent = items.filter((s) => {
+      const title = s.title.toLowerCase();
+      return (
+        title.includes("buy") || title.includes("price") ||
+        title.includes("booking") || title.includes("flat") ||
+        title.includes("invest") || title.includes("rera") ||
+        title.includes("possession")
+      );
+    });
+
+    const totalVolume = items.reduce((sum, s) => sum + ((s.data?.volume) ?? 0), 0);
+
+    const topRising = rising
+      .sort((a, b) => ((b.data.week_change_pct ?? b.data.movement_pct ?? 0) - (a.data.week_change_pct ?? a.data.movement_pct ?? 0)))
+      .slice(0, 3)
+      .map((s) => {
+        const chg = s.data.week_change_pct ?? s.data.movement_pct ?? 0;
+        return `${s.title} +${Math.round(chg)}%`;
+      })
+      .join(", ");
+
+    const urgency: "high" | "medium" | "low" =
+      rising.length >= 3 ? "high" : rising.length >= 1 ? "medium" : "low";
+
+    const contentParts = [
+      `${items.length} keywords tracked this week.`,
+      totalVolume > 0 ? `Total monthly search volume: ${totalVolume.toLocaleString()}.` : null,
+      rising.length > 0
+        ? `${rising.length} keyword${rising.length > 1 ? "s" : ""} rising: ${topRising}.`
+        : "No significant keyword movement this week.",
+      highIntent.length > 0
+        ? `${highIntent.length} high-intent keyword${highIntent.length > 1 ? "s" : ""} (buy/price/booking) in tracked set.`
+        : null,
+    ].filter(Boolean).join(" ");
+
+    const row: SignalRow = {
+      client_id: clientId,
+      signal_type: "buyer_behaviour",
+      source: "manual",
+      title: `Search intent summary — ${rising.length} rising keyword${rising.length !== 1 ? "s" : ""}, ${highIntent.length} high-intent`,
+      content: contentParts,
+      data: {
+        total_keywords: items.length,
+        rising_count: rising.length,
+        high_intent_count: highIntent.length,
+        total_volume: totalVolume,
+        top_rising: rising.slice(0, 3).map((s) => s.title),
+        source: "derived_from_keyword_signals",
+      },
+      urgency,
+      week_date: weekDate,
+      is_included: true,
+    };
+
+    const { error } = await supabaseAdmin.from("signals").upsert([row] as never, {
+      onConflict: "client_id,title,week_date,source",
+      ignoreDuplicates: false,
+    });
+    if (error) throw new Error(error.message);
+    return { inserted: 1 };
   });
