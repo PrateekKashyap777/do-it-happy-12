@@ -13,12 +13,35 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles } from "lucide-react";
+import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles, BarChart3 } from "lucide-react";
 import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
 import { formatForWhatsApp } from "@/lib/terrain-utils";
+import {
+  SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
+  MarketPanel, RecommendationPreviewCard,
+} from "@/components/BriefDataPanels";
 import type {
   Brief, BriefContent, Client, Signal, ContentRecommendation,
 } from "@/lib/terrain-types";
+
+const SIGNAL_TYPE_FOR_SECTION: Record<string, Signal["signal_type"] | undefined> = {
+  search_signals: "search_query",
+  competitor_activity: "competitor",
+  buyer_behaviour: "buyer_behaviour",
+  rera_watch: "rera",
+  campaign_adjustment: "market",
+};
+
+function DataPanelForSection({ sectionKey, signals }: { sectionKey: string; signals: Signal[] }) {
+  switch (sectionKey) {
+    case "search_signals": return <SearchSignalsPanel signals={signals} />;
+    case "competitor_activity": return <CompetitorPanel signals={signals} />;
+    case "buyer_behaviour": return <BuyerBehaviourPanel signals={signals} />;
+    case "rera_watch": return <RERAPanel signals={signals} />;
+    case "campaign_adjustment": return <MarketPanel signals={signals} />;
+    default: return null;
+  }
+}
 
 export const Route = createFileRoute("/_authenticated/briefs/$id")({
   component: BriefStudio,
@@ -53,6 +76,15 @@ function BriefStudio() {
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [expandedPanels, setExpandedPanels] = useState<Set<string>>(new Set());
+  const [previewMode, setPreviewMode] = useState(false);
+  function togglePanel(key: string) {
+    setExpandedPanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
 
   const { data, refetch } = useQuery({
@@ -232,36 +264,102 @@ function BriefStudio() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
         {/* LEFT: sections */}
         <div className="space-y-4">
-          {SECTIONS.map(({ key, label, icon }) => (
-            <div key={key} className="terr-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <span>{icon}</span>{label}
-                </h3>
-                <Button
-                  variant="ghost" size="sm"
-                  onClick={() => handleRegenerate(key)}
-                  disabled={regenKey === key}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${regenKey === key ? "animate-spin" : ""}`} />
-                  Regenerate
-                </Button>
+          {SECTIONS.map(({ key, label, icon }) => {
+            const isExpanded = expandedPanels.has(key);
+            const signalType = SIGNAL_TYPE_FOR_SECTION[key];
+            const relevantCount = signalType ? included.filter((s) => s.signal_type === signalType).length : 0;
+            const hasDataPanel = key !== "content_recommendations" && !!signalType;
+            const isRecs = key === "content_recommendations";
+            return (
+              <div key={key} className="terr-card p-5">
+                <div className="flex items-center justify-between mb-3 gap-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <span>{icon}</span>{label}
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    {hasDataPanel && (
+                      <button
+                        type="button"
+                        onClick={() => togglePanel(key)}
+                        className={`text-xs px-2 py-1 rounded-sm border transition-colors flex items-center gap-1 ${
+                          isExpanded
+                            ? "border-primary text-primary bg-primary/10"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <BarChart3 className="h-3 w-3" />
+                        {isExpanded ? "Hide data" : "View data"}
+                        {relevantCount > 0 && (
+                          <span className="font-mono text-[10px] opacity-70">{relevantCount}</span>
+                        )}
+                      </button>
+                    )}
+                    {isRecs && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewMode((p) => !p)}
+                        className={`text-xs px-2 py-1 rounded-sm border transition-colors ${
+                          previewMode
+                            ? "border-primary text-primary bg-primary/10"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {previewMode ? "Edit mode" : "Preview"}
+                      </button>
+                    )}
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => handleRegenerate(key)}
+                      disabled={regenKey === key}
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1 ${regenKey === key ? "animate-spin" : ""}`} />
+                      Regenerate
+                    </Button>
+                  </div>
+                </div>
+
+                {isExpanded && hasDataPanel && (
+                  <div className="mb-4 pb-4 border-b border-border transition-all duration-200">
+                    <DataPanelForSection sectionKey={key} signals={included} />
+                  </div>
+                )}
+
+                {isRecs ? (
+                  previewMode ? (
+                    <div className="space-y-3">
+                      {(content.content_recommendations ?? []).map((rec, i) => (
+                        <RecommendationPreviewCard key={i} rec={rec} index={i} />
+                      ))}
+                      {(content.content_recommendations ?? []).length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          No recommendations yet. Regenerate this section.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <RecommendationsEditor
+                      value={content.content_recommendations ?? []}
+                      onChange={(v) => patchSection("content_recommendations", v)}
+                    />
+                  )
+                ) : (
+                  <div>
+                    <Textarea
+                      value={(content[key] as string) ?? ""}
+                      onChange={(e) => patchSection(key, e.target.value as never)}
+                      rows={4}
+                      className="text-sm"
+                    />
+                    {relevantCount > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
+                        Based on {relevantCount} {signalType?.replace("_", " ")} signal{relevantCount > 1 ? "s" : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
-              {key === "content_recommendations" ? (
-                <RecommendationsEditor
-                  value={content.content_recommendations ?? []}
-                  onChange={(v) => patchSection("content_recommendations", v)}
-                />
-              ) : (
-                <Textarea
-                  value={(content[key] as string) ?? ""}
-                  onChange={(e) => patchSection(key, e.target.value as never)}
-                  rows={4}
-                  className="text-sm"
-                />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* RIGHT: controls */}

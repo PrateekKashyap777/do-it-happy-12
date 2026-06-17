@@ -26,18 +26,25 @@ function Dashboard() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["dashboard", week],
     queryFn: async () => {
-      const [clientsRes, signalsRes, briefsRes] = await Promise.all([
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const recentSince = fourWeeksAgo.toISOString().slice(0, 10);
+      const [clientsRes, signalsRes, briefsRes, recentRes] = await Promise.all([
         supabase.from("clients").select("*").order("created_at", { ascending: false }),
         supabase.from("signals").select("*").eq("week_date", week),
         supabase.from("briefs").select("*").eq("week_date", week),
+        supabase.from("briefs").select("*").eq("status", "sent")
+          .gte("week_date", recentSince).order("week_date", { ascending: false }).limit(20),
       ]);
       if (clientsRes.error) throw clientsRes.error;
       if (signalsRes.error) throw signalsRes.error;
       if (briefsRes.error) throw briefsRes.error;
+      if (recentRes.error) throw recentRes.error;
       return {
         clients: (clientsRes.data ?? []) as unknown as Client[],
         signals: (signalsRes.data ?? []) as unknown as Signal[],
         briefs: (briefsRes.data ?? []) as unknown as Brief[],
+        recentSent: (recentRes.data ?? []) as unknown as Brief[],
       };
     },
   });
@@ -45,6 +52,8 @@ function Dashboard() {
   const clients = data?.clients ?? [];
   const signals = data?.signals ?? [];
   const briefs = data?.briefs ?? [];
+  const recentSent = data?.recentSent ?? [];
+  const clientNameById = new Map(clients.map((c) => [c.id, c.name]));
 
   const active = clients.filter((c) => c.status === "active");
   const briefByClient = new Map<string, Brief>();
@@ -212,6 +221,44 @@ function Dashboard() {
           </table>
         )}
       </div>
+
+      {recentSent.length > 0 && (
+        <div className="terr-card mt-6">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Recent Deliveries</h2>
+            <span className="terr-label">Last 4 weeks</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-muted-foreground">
+                <th className="terr-label px-5 py-2 font-normal">Client</th>
+                <th className="terr-label px-5 py-2 font-normal">Week</th>
+                <th className="terr-label px-5 py-2 font-normal">Signals</th>
+                <th className="terr-label px-5 py-2 font-normal">Key insight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentSent.map((b, i) => {
+                const insight = (b.content?.search_signals ?? "").slice(0, 80);
+                return (
+                  <tr key={b.id} className={i % 2 === 1 ? "bg-elevated/40" : ""}>
+                    <td className="px-5 py-2.5">
+                      <Link to="/briefs/$id" params={{ id: b.id }} className="font-medium hover:text-accent">
+                        {clientNameById.get(b.client_id) ?? "—"}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{b.week_date}</td>
+                    <td className="px-5 py-2.5 font-mono text-xs">{b.signal_count}</td>
+                    <td className="px-5 py-2.5 text-xs text-muted-foreground truncate max-w-[420px]">
+                      {insight ? `${insight}${insight.length === 80 ? "…" : ""}` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppShell>
   );
 }
