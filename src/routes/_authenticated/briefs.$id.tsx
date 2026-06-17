@@ -76,6 +76,15 @@ function BriefStudio() {
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [expandedPanels, setExpandedPanels] = useState<Set<string>>(new Set());
+  const [previewMode, setPreviewMode] = useState(false);
+  function togglePanel(key: string) {
+    setExpandedPanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
 
   const { data, refetch } = useQuery({
