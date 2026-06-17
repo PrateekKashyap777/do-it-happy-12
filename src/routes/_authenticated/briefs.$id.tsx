@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles, BarChart3 } from "lucide-react";
 import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
-import { formatForWhatsApp } from "@/lib/terrain-utils";
+import { formatForWhatsApp, getErrorMessage } from "@/lib/terrain-utils";
 import {
   SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
   MarketPanel, RecommendationPreviewCard,
