@@ -99,11 +99,7 @@ function Dashboard() {
       toast.success("Brief generated");
       navigate({ to: "/briefs/$id", params: { id: brief!.id } });
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? `Brief generation failed — ${err.message}`
-          : "Brief generation failed — try again or add more signals.",
-      );
+      toast.error(`Brief generation failed — ${getErrorMessage(err, "try again or add more signals.")}`);
     } finally {
       setGeneratingFor(null);
       refetch();
