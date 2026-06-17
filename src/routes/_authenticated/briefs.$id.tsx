@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles, BarChart3 } from "lucide-react";
 import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
+import { sendBriefEmail } from "@/lib/email.functions";
 import { formatForWhatsApp, getErrorMessage } from "@/lib/terrain-utils";
 import {
   SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
@@ -68,6 +69,7 @@ function BriefStudio() {
   const { id } = Route.useParams();
   const regen = useServerFn(regenerateSection);
   const genBrief = useServerFn(generateBrief);
+  const sendEmail = useServerFn(sendBriefEmail);
   const [content, setContent] = useState<BriefContent | null>(null);
   const [notes, setNotes] = useState("");
   const [regenKey, setRegenKey] = useState<string | null>(null);
