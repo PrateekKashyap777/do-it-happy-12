@@ -53,6 +53,48 @@ const URGENCY_CLASS: Record<string, string> = {
   low: "terr-signal-low",
 };
 
+const BRIEF_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  sent: "Sent",
+};
+
+function stepWeek(week: string, delta: number): string {
+  const d = new Date(week + "T00:00:00");
+  d.setDate(d.getDate() + delta * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatNum(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (Number.isNaN(n)) return null;
+  return n.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+}
+
+function signalMetrics(data: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const vol = formatNum(data.volume);
+  if (vol) out.push(`Vol: ${vol}`);
+  const wow = data.week_change_pct ?? data.movement_pct;
+  const wowN = formatNum(wow);
+  if (wowN !== null) {
+    const num = typeof wow === "number" ? wow : Number(wow);
+    out.push(`WoW: ${num > 0 ? "+" : ""}${wowN}%`);
+  }
+  const pos = formatNum(data.position);
+  if (pos) out.push(`Pos: ${pos}`);
+  const ctr = formatNum(data.ctr);
+  if (ctr) out.push(`CTR: ${ctr}%`);
+  const imp = formatNum(data.impressions);
+  if (imp) out.push(`Impr: ${imp}`);
+  const clicks = formatNum(data.clicks);
+  if (clicks) out.push(`Clicks: ${clicks}`);
+  return out;
+}
+
+
 function ClientDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
