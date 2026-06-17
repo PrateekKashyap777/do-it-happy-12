@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles, BarChart3 } from "lucide-react";
 import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
-import { formatForWhatsApp } from "@/lib/terrain-utils";
+import { formatForWhatsApp, getErrorMessage } from "@/lib/terrain-utils";
 import {
   SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
   MarketPanel, RecommendationPreviewCard,
@@ -165,7 +165,7 @@ function BriefStudio() {
       setIsDirty(false);
       toast.success("Saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save");
+      toast.error(getErrorMessage(err, "Failed to save"));
     } finally { setSaving(false); }
   }
   saveDraftRef.current = () => { if (!saving) saveDraft(); };
@@ -198,7 +198,7 @@ function BriefStudio() {
       }
       toast.success("Section regenerated");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Regeneration failed");
+      toast.error(getErrorMessage(err, "Regeneration failed"));
     } finally { setRegenKey(null); }
   }
 
@@ -222,7 +222,7 @@ function BriefStudio() {
       toast.success("Brief regenerated");
       refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Regeneration failed");
+      toast.error(getErrorMessage(err, "Regeneration failed"));
     } finally { setRegenAll(false); }
   }
 

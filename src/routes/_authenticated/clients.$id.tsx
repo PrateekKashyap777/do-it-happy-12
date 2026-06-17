@@ -18,7 +18,8 @@ import {
 } from "recharts";
 import { generateBrief } from "@/lib/anthropic.functions";
 import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
-import { currentWeekMonday, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
+import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors } from "@/lib/signals.functions";
+import { currentWeekMonday, getErrorMessage, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
   Client, Signal, Brief, SignalType,
 } from "@/lib/terrain-types";
@@ -100,12 +101,16 @@ function ClientDetail() {
   const navigate = useNavigate();
   const genBrief = useServerFn(generateBrief);
   const pullData = useServerFn(pullLiveKeywordData);
+  const pullNews = useServerFn(pullNewsSignals);
+  const checkAQI = useServerFn(checkAQISignal);
+  const pullYT = useServerFn(pullYouTubeCompetitors);
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const [pullingAll, setPullingAll] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["client-detail", id, week],
@@ -175,7 +180,7 @@ function ClientDetail() {
       toast.success("Brief generated");
       navigate({ to: "/briefs/$id", params: { id: brief!.id } });
     } catch (err) {
-      toast.error(err instanceof Error ? `Brief generation failed — ${err.message}` : "Brief generation failed");
+      toast.error(`Brief generation failed — ${getErrorMessage(err)}`);
     } finally {
       setGenerating(false);
     }
@@ -206,9 +211,60 @@ function ClientDetail() {
       }
       refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Pull failed");
+      toast.error(getErrorMessage(err, "Pull failed"));
     } finally {
       setPulling(false);
+    }
+  }
+
+  async function handlePullAll() {
+    if (!client) return;
+    setPullingAll(true);
+    try {
+      const kws = client.keywords ?? [];
+      const comps = client.competitors ?? [];
+      const tasks: Array<{ label: string; promise: Promise<{ inserted: number }> }> = [];
+      if (kws.length > 0) {
+        tasks.push({
+          label: "Keywords",
+          promise: pullData({ data: { clientId: client.id, keywords: kws, weekDate: week, locationCode: 2356, languageCode: "en" } })
+            .then((r) => ({ inserted: r.volumes + r.trends })),
+        });
+      }
+      tasks.push({
+        label: "News",
+        promise: pullNews({ data: { clientId: client.id, market: client.market_geography, keywords: kws, weekDate: week, limit: 8 } }),
+      });
+      tasks.push({
+        label: "AQI",
+        promise: checkAQI({ data: { clientId: client.id, market: client.market_geography, weekDate: week } }),
+      });
+      if (comps.length > 0) {
+        tasks.push({
+          label: "YouTube",
+          promise: pullYT({ data: { clientId: client.id, competitors: comps, weekDate: week, perCompetitor: 2 } }),
+        });
+      }
+      const results = await Promise.allSettled(tasks.map((t) => t.promise));
+      let total = 0;
+      const ok: string[] = [];
+      const fail: string[] = [];
+      results.forEach((r, i) => {
+        const label = tasks[i].label;
+        if (r.status === "fulfilled") {
+          total += r.value.inserted;
+          ok.push(`${label}: ${r.value.inserted}`);
+        } else {
+          fail.push(`${label}: ${getErrorMessage(r.reason, "failed")}`);
+        }
+      });
+      if (fail.length === 0) toast.success(`Pulled ${total} signals — ${ok.join(", ")}`);
+      else toast.warning(`Pulled ${total}. ${ok.join(", ")}${ok.length ? " · " : ""}Failures — ${fail.join("; ")}`);
+      refetch();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Pull All failed"));
+    } finally {
+      setPullingAll(false);
     }
   }
 
@@ -404,6 +460,25 @@ function ClientDetail() {
                 <>
                   <span className="mr-2">📡</span>
                   Pull Live Data
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              className="w-full mt-2 bg-primary hover:bg-primary-hover"
+              onClick={handlePullAll}
+              disabled={pullingAll}
+              title="Pull keywords + news + AQI + YouTube in parallel"
+            >
+              {pullingAll ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />
+                  Pulling all sources...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">⚡</span>
+                  Pull All
                 </>
               )}
             </Button>

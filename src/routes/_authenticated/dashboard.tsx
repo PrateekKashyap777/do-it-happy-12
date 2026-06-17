@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { currentWeekMonday } from "@/lib/terrain-utils";
+import { currentWeekMonday, getErrorMessage } from "@/lib/terrain-utils";
 import type { Client, Brief, Signal } from "@/lib/terrain-types";
 import { toast } from "sonner";
 import { generateBrief } from "@/lib/anthropic.functions";
@@ -99,11 +99,7 @@ function Dashboard() {
       toast.success("Brief generated");
       navigate({ to: "/briefs/$id", params: { id: brief!.id } });
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? `Brief generation failed — ${err.message}`
-          : "Brief generation failed — try again or add more signals.",
-      );
+      toast.error(`Brief generation failed — ${getErrorMessage(err, "try again or add more signals.")}`);
     } finally {
       setGeneratingFor(null);
       refetch();
@@ -117,7 +113,7 @@ function Dashboard() {
       toast.success("Demo client created — exploring Pincode Bharat");
       navigate({ to: "/clients/$id", params: { id: res.clientId } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create demo");
+      toast.error(getErrorMessage(err, "Failed to create demo"));
     } finally {
       setSeeding(false);
     }

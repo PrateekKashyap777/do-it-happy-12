@@ -1,5 +1,21 @@
 import type { Brief, BriefContent, Signal } from "./terrain-types";
 
+/** Extract a human-readable message from any thrown / rejected value. */
+export function getErrorMessage(err: unknown, fallback = "Something went wrong"): string {
+  if (!err) return fallback;
+  if (typeof err === "string") return err;
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "object") {
+    const e = err as Record<string, unknown>;
+    if (typeof e.message === "string" && e.message) return e.message;
+    const data = e.data as Record<string, unknown> | undefined;
+    if (data && typeof data.message === "string" && data.message) return data.message;
+    if (typeof e.error === "string" && e.error) return e.error;
+    if (typeof e.statusText === "string" && e.statusText) return e.statusText;
+  }
+  return fallback;
+}
+
 /** Returns this week's Monday as YYYY-MM-DD. */
 export function currentWeekMonday(d: Date = new Date()): string {
   const date = new Date(d);
