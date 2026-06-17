@@ -187,6 +187,48 @@ function ClientSettings() {
           <Field label="GSC Property URL"><Input value={form.gsc_property_url} onChange={(e) => patch({ gsc_property_url: e.target.value })} /></Field>
         </Section>
 
+        <Section title="Social Profiles">
+          <div className="space-y-3">
+            <div>
+              <Label className="terr-label">Competitor Social Profiles</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Instagram and Facebook accounts to monitor weekly. Links open directly
+                in the Client Detail page for quick review.
+              </p>
+            </div>
+
+            {socialProfiles.map((p) => (
+              <div key={p.id} className="terr-elevated p-3 rounded-sm flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{p.name}</p>
+                  <div className="flex gap-3 mt-0.5 text-[10px] text-muted-foreground">
+                    {p.instagram && <span style={{ color: "#C94060" }}>IG @{p.instagram}</span>}
+                    {p.facebook && <span style={{ color: "#1877F2" }}>FB {p.facebook}</span>}
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-danger"
+                  onClick={() => removeProfile(p.id)}>Remove</Button>
+              </div>
+            ))}
+
+            <div className="terr-elevated p-3 rounded-sm space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Add competitor account</p>
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)}
+                placeholder="Competitor name (e.g. Pacific Golf Estate)" className="text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={newIG} onChange={(e) => setNewIG(e.target.value)}
+                  placeholder="Instagram handle (without @)" className="text-sm" />
+                <Input value={newFB} onChange={(e) => setNewFB(e.target.value)}
+                  placeholder="Facebook page name" className="text-sm" />
+              </div>
+              <Button variant="outline" size="sm" onClick={addProfile} disabled={!newName.trim()}
+                className="w-full text-xs">
+                + Add profile
+              </Button>
+            </div>
+          </div>
+        </Section>
+
         <Section title="Buyer Personas">
           <PersonaEditor value={form.buyer_personas} onChange={(v) => patch({ buyer_personas: v })} />
         </Section>
