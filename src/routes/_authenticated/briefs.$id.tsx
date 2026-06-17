@@ -225,7 +225,7 @@ function BriefStudio() {
           <p className="text-sm text-muted-foreground mt-1 font-mono">Week of {brief.week_date}</p>
         </div>
         <span className={`terr-badge ${brief.status === "sent" ? "bg-primary/25 text-primary-foreground" : brief.status === "approved" ? "bg-success/15 text-success" : brief.status === "review" ? "bg-warning/15 text-warning" : "bg-elevated text-muted-foreground"}`}>
-          {brief.status}
+          {BRIEF_STATUS_LABEL[brief.status] ?? brief.status}{isDirty ? " · unsaved" : ""}
         </span>
       </div>
 
