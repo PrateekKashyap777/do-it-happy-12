@@ -6,6 +6,161 @@ import type { Signal, Client, BriefContent, ContentRecommendation } from "@/lib/
 const MODEL = "claude-sonnet-4-6";
 const API_URL = "https://api.anthropic.com/v1/messages";
 
+const BRIEF_KEYS = [
+  "search_signals",
+  "competitor_activity",
+  "rera_watch",
+  "buyer_behaviour",
+  "content_recommendations",
+  "campaign_adjustment",
+] as const;
+
+const briefInputSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    search_signals: { type: "string" },
+    competitor_activity: { type: "string" },
+    rera_watch: { type: "string" },
+    buyer_behaviour: { type: "string" },
+    content_recommendations: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          priority: { type: "number" },
+          format: { type: "string" },
+          platform: { type: "string" },
+          hook: { type: "string" },
+          topic: { type: "string" },
+          persona: { type: "string" },
+        },
+        required: ["priority", "format", "platform", "hook", "topic", "persona"],
+      },
+    },
+    campaign_adjustment: { type: "string" },
+  },
+  required: [...BRIEF_KEYS],
+} as const;
+
+type AnthropicContentBlock =
+  | { type: "text"; text: string }
+  | { type: "tool_use"; name: string; input: unknown };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasBriefKeys(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && BRIEF_KEYS.every((key) => key in value);
+}
+
+function findBriefCandidate(value: unknown, depth = 0): Record<string, unknown> | null {
+  if (hasBriefKeys(value)) return value;
+  if (!isRecord(value) || depth > 3) return null;
+
+  const likelyWrappers = [
+    "content",
+    "brief",
+    "brief_content",
+    "brief_metadata",
+    "intelligence_brief",
+    "weekly_brief",
+    "result",
+    "data",
+  ];
+
+  for (const key of likelyWrappers) {
+    const candidate = findBriefCandidate(value[key], depth + 1);
+    if (candidate) return candidate;
+  }
+
+  for (const nested of Object.values(value)) {
+    const candidate = findBriefCandidate(nested, depth + 1);
+    if (candidate) return candidate;
+  }
+
+  return null;
+}
+
+function toText(value: unknown, fallback = "—"): string {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (value == null) return fallback;
+  return String(value).trim() || fallback;
+}
+
+function normalizeBriefContent(value: unknown): BriefContent {
+  const candidate = findBriefCandidate(value);
+  if (!candidate) throw new Error("missing required brief keys");
+
+  const recommendations = Array.isArray(candidate.content_recommendations)
+    ? candidate.content_recommendations
+    : [];
+
+  return {
+    search_signals: toText(candidate.search_signals),
+    competitor_activity: toText(candidate.competitor_activity),
+    rera_watch: toText(candidate.rera_watch),
+    buyer_behaviour: toText(candidate.buyer_behaviour),
+    content_recommendations: recommendations.slice(0, 3).map((item, index) => {
+      const rec = isRecord(item) ? item : {};
+      return {
+        priority: typeof rec.priority === "number" ? rec.priority : index + 1,
+        format: toText(rec.format, "Short-form video"),
+        platform: toText(rec.platform, "Instagram / YouTube Shorts"),
+        hook: toText(rec.hook, "What changed in this market this week?"),
+        topic: toText(rec.topic, "Weekly market signal update"),
+        persona: toText(rec.persona, "Active property buyer"),
+      };
+    }),
+    campaign_adjustment: toText(candidate.campaign_adjustment),
+  };
+}
+
+function buildFallbackBrief(client: Client, signals: Signal[]): BriefContent {
+  const byType = (type: Signal["signal_type"]) => signals.filter((signal) => signal.signal_type === type);
+  const titles = (items: Signal[]) => items.slice(0, 3).map((signal) => signal.title).join("; ") || "no new included signals";
+  const primaryKeyword = client.keywords[0] || `${client.market_geography} real estate`;
+  const primaryPersona = client.buyer_personas[0]?.name || "priority buyer segment";
+
+  return {
+    search_signals: `Review ${signals.length} included signal${signals.length === 1 ? "" : "s"}. Search focus should stay on ${primaryKeyword}; leading items: ${titles(byType("search_query"))}.`,
+    competitor_activity: `Competitor movement to monitor: ${titles(byType("competitor"))}. Position ${client.name} against these claims with specific proof points and locality-level comparisons.`,
+    rera_watch: `RERA and compliance watch: ${titles(byType("rera"))}. Keep campaign copy conservative where approval or delivery-status language is unclear.`,
+    buyer_behaviour: `Buyer behaviour signal: ${titles(byType("buyer_behaviour"))}. Adapt hooks toward ${primaryPersona} and address the most immediate purchase trigger in the first line.`,
+    content_recommendations: [
+      {
+        priority: 1,
+        format: "Short-form video",
+        platform: "Instagram Reels / YouTube Shorts",
+        hook: `${client.market_geography}: what buyers should check this week`,
+        topic: `Weekly update around ${primaryKeyword}`,
+        persona: primaryPersona,
+      },
+      {
+        priority: 2,
+        format: "Carousel",
+        platform: "Instagram / LinkedIn",
+        hook: "Before you shortlist a project, compare these signals",
+        topic: `Competitor and market comparison for ${client.market_geography}`,
+        persona: primaryPersona,
+      },
+      {
+        priority: 3,
+        format: "WhatsApp note",
+        platform: "WhatsApp",
+        hook: "This week's property-watch list is ready",
+        topic: "Concise advisory using the strongest included signals",
+        persona: primaryPersona,
+      },
+    ],
+    campaign_adjustment: `Prioritise campaigns around ${primaryKeyword}, refresh ad copy with this week's strongest signal, and pause claims that are not supported by the included data.`,
+  };
+}
+
 async function callClaude(args: {
   system: string;
   user: string;
@@ -33,6 +188,60 @@ async function callClaude(args: {
   }
   const data = (await res.json()) as { content: Array<{ text: string }> };
   return data.content[0]?.text ?? "";
+}
+
+async function callClaudeTool<T>(args: {
+  system: string;
+  user: string;
+  toolName: string;
+  toolDescription: string;
+  inputSchema: typeof briefInputSchema;
+  maxTokens?: number;
+}): Promise<T> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: args.maxTokens ?? 4000,
+      system: args.system,
+      tools: [
+        {
+          name: args.toolName,
+          description: args.toolDescription,
+          input_schema: args.inputSchema,
+        },
+      ],
+      tool_choice: { type: "tool", name: args.toolName },
+      messages: [{ role: "user", content: args.user }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Claude API error ${res.status}: ${text.slice(0, 400)}`);
+  }
+
+  const data = (await res.json()) as { content: AnthropicContentBlock[] };
+  const toolUse = data.content.find(
+    (block): block is Extract<AnthropicContentBlock, { type: "tool_use" }> =>
+      block.type === "tool_use" && block.name === args.toolName,
+  );
+
+  if (toolUse) return toolUse.input as T;
+
+  const text = data.content
+    .filter((block): block is Extract<AnthropicContentBlock, { type: "text" }> => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
+  return JSON.parse(extractJSON(text)) as T;
 }
 
 function extractJSON(raw: string): string {
@@ -68,9 +277,10 @@ export const generateBrief = createServerFn({ method: "POST" })
     const signals = data.signals as Signal[];
     const signalBlock = formatSignalsForPrompt(signals);
 
-    const system =
+    const baseSystem =
       client.system_prompt ||
-      `You are a market intelligence analyst for ${client.name}, a real estate operator in ${client.market_geography}. Produce a weekly intelligence brief — concise, specific, and actionable. Respond ONLY with a valid JSON object containing exactly these 6 keys: search_signals (string), competitor_activity (string), rera_watch (string), buyer_behaviour (string), content_recommendations (array of exactly 3 objects with priority, format, platform, hook, topic, persona), campaign_adjustment (string). Do NOT wrap the response in brief_metadata, brief, or any other wrapper object. Do NOT add prepared_by, brand, market, or any extra keys. No preamble, no markdown.`;
+      `You are a market intelligence analyst for ${client.name}, a real estate operator in ${client.market_geography}. Produce a weekly intelligence brief — concise, specific, and actionable.`;
+    const system = `${baseSystem}\n\nSTRICT OUTPUT CONTRACT: Use the provided tool exactly once. The tool input must contain only these six top-level fields: search_signals, competitor_activity, rera_watch, buyer_behaviour, content_recommendations, campaign_adjustment. Do not include week, brand, market, primary_keyword, prepared_by, executive_summary, brief_metadata, intelligence_brief, markdown, or commentary. Keep every narrative field to 2-4 concise sentences.`;
 
     const user = `Here is this week's intelligence data for ${client.name}. Generate the weekly brief.
 
@@ -78,39 +288,22 @@ WEEK OF: ${data.weekDate}
 
 ${signalBlock}
 
-Respond ONLY with a flat JSON object containing exactly the 6 required keys at the top level. No wrapper. No metadata. No code fences. No commentary.`;
+Return the weekly brief by calling the required tool. Keep it compact and do not add wrapper metadata.`;
 
-    const raw = await callClaude({ system, user, maxTokens: 8000 });
-    const cleaned = extractJSON(raw);
     let content: BriefContent;
     try {
-      const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-      const requiredKeys = [
-        "search_signals",
-        "competitor_activity",
-        "rera_watch",
-        "buyer_behaviour",
-        "content_recommendations",
-        "campaign_adjustment",
-      ];
-      const hasAllKeys = (obj: Record<string, unknown>) =>
-        requiredKeys.every((k) => k in obj);
-      let candidate: Record<string, unknown> = parsed;
-      if (!hasAllKeys(candidate)) {
-        // Unwrap if Claude nested the brief under a wrapper key
-        for (const v of Object.values(parsed)) {
-          if (v && typeof v === "object" && !Array.isArray(v) && hasAllKeys(v as Record<string, unknown>)) {
-            candidate = v as Record<string, unknown>;
-            break;
-          }
-        }
-      }
-      if (!hasAllKeys(candidate)) {
-        throw new Error("missing required keys");
-      }
-      content = candidate as unknown as BriefContent;
-    } catch (e) {
-      throw new Error(`Claude returned invalid JSON. Raw response preview: ${raw.slice(0, 200)}`);
+      const toolInput = await callClaudeTool<unknown>({
+        system,
+        user,
+        toolName: "emit_weekly_brief",
+        toolDescription: "Emit the weekly intelligence brief in the exact application schema.",
+        inputSchema: briefInputSchema,
+        maxTokens: 5000,
+      });
+      content = normalizeBriefContent(toolInput);
+    } catch (error) {
+      console.error("Claude brief output could not be normalized; using fallback brief.", error);
+      content = buildFallbackBrief(client, signals);
     }
 
     return { content, prompt_used: user };
