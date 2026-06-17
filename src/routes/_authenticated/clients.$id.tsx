@@ -101,12 +101,16 @@ function ClientDetail() {
   const navigate = useNavigate();
   const genBrief = useServerFn(generateBrief);
   const pullData = useServerFn(pullLiveKeywordData);
+  const pullNews = useServerFn(pullNewsSignals);
+  const checkAQI = useServerFn(checkAQISignal);
+  const pullYT = useServerFn(pullYouTubeCompetitors);
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const [pullingAll, setPullingAll] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["client-detail", id, week],
