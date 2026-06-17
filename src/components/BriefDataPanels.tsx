@@ -214,7 +214,7 @@ export function RERAPanel({ signals }: { signals: Signal[] }) {
           <div key={s.id} className={`terr-elevated p-3 rounded-sm border-l-2 ${URGENCY_BORDER[s.urgency] ?? "border-l-border"}`}>
             <p className="text-sm font-medium">{s.title}</p>
             {s.content && <p className="text-xs text-muted-foreground mt-1">{s.content}</p>}
-            {d.url && (
+            {!!d.url && (
               <a href={d.url as string} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-accent hover:underline mt-1 inline-block">
                 View filing →
