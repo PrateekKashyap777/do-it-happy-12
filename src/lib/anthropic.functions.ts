@@ -296,10 +296,9 @@ export const generateBrief = createServerFn({ method: "POST" })
     const signals = data.signals as Signal[];
     const signalBlock = formatSignalsForPrompt(signals);
 
-    const baseSystem =
-      client.system_prompt ||
-      `You are a market intelligence analyst for ${client.name}, a real estate operator in ${client.market_geography}. Produce a weekly intelligence brief — concise, specific, and actionable.`;
+    const baseSystem = client.system_prompt || buildFallbackPrompt(client);
     const system = `${baseSystem}\n\nSTRICT OUTPUT CONTRACT: Use the provided tool exactly once. The tool input must contain only these six top-level fields: search_signals, competitor_activity, rera_watch, buyer_behaviour, content_recommendations, campaign_adjustment. Do not include week, brand, market, primary_keyword, prepared_by, executive_summary, brief_metadata, intelligence_brief, markdown, or commentary. Keep every narrative field to 2-4 concise sentences.`;
+
 
     const user = `Here is this week's intelligence data for ${client.name}. Generate the weekly brief.
 
