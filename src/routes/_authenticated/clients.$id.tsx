@@ -247,15 +247,35 @@ function ClientDetail() {
         <div className="space-y-4">
           <div className="terr-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="terr-label">Week of</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setWeek(stepWeek(week, -1))}
+                  aria-label="Previous week"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
                 <Input
                   type="date"
                   value={week}
                   onChange={(e) => setWeek(e.target.value)}
                   className="w-44 font-mono"
                 />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setWeek(stepWeek(week, 1))}
+                  disabled={week >= currentWeekMonday()}
+                  aria-label="Next week"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
+
               <Button variant="outline" size="sm" onClick={() => setModal(true)}>+ Add Signal</Button>
             </div>
             <div className="mt-4">
