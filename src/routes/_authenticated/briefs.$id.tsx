@@ -79,8 +79,20 @@ function BriefStudio() {
     if (data?.brief) {
       setContent(data.brief.content);
       setNotes(data.brief.reviewer_notes ?? "");
+      setIsDirty(false);
     }
   }, [data?.brief]);
+
+  // Warn on tab close / refresh with unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   if (!data || !content) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading brief...</div></AppShell>;
@@ -91,7 +103,9 @@ function BriefStudio() {
 
   function patchSection<K extends keyof BriefContent>(key: K, value: BriefContent[K]) {
     setContent((c) => (c ? { ...c, [key]: value } : c));
+    setIsDirty(true);
   }
+
 
   async function saveDraft() {
     if (!content) return;
