@@ -8,6 +8,7 @@ import { currentWeekMonday } from "@/lib/terrain-utils";
 import type { Client, Brief, Signal } from "@/lib/terrain-types";
 import { toast } from "sonner";
 import { generateBrief } from "@/lib/anthropic.functions";
+import { seedDemoClient } from "@/lib/seed.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
