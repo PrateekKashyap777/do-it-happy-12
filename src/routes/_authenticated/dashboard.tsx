@@ -113,7 +113,7 @@ function Dashboard() {
       toast.success("Demo client created — exploring Pincode Bharat");
       navigate({ to: "/clients/$id", params: { id: res.clientId } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create demo");
+      toast.error(getErrorMessage(err, "Failed to create demo"));
     } finally {
       setSeeding(false);
     }
