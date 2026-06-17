@@ -221,6 +221,44 @@ function Dashboard() {
           </table>
         )}
       </div>
+
+      {recentSent.length > 0 && (
+        <div className="terr-card mt-6">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Recent Deliveries</h2>
+            <span className="terr-label">Last 4 weeks</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-muted-foreground">
+                <th className="terr-label px-5 py-2 font-normal">Client</th>
+                <th className="terr-label px-5 py-2 font-normal">Week</th>
+                <th className="terr-label px-5 py-2 font-normal">Signals</th>
+                <th className="terr-label px-5 py-2 font-normal">Key insight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentSent.map((b, i) => {
+                const insight = (b.content?.search_signals ?? "").slice(0, 80);
+                return (
+                  <tr key={b.id} className={i % 2 === 1 ? "bg-elevated/40" : ""}>
+                    <td className="px-5 py-2.5">
+                      <Link to="/briefs/$id" params={{ id: b.id }} className="font-medium hover:text-accent">
+                        {clientNameById.get(b.client_id) ?? "—"}
+                      </Link>
+                    </td>
+                    <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{b.week_date}</td>
+                    <td className="px-5 py-2.5 font-mono text-xs">{b.signal_count}</td>
+                    <td className="px-5 py-2.5 text-xs text-muted-foreground truncate max-w-[420px]">
+                      {insight ? `${insight}${insight.length === 80 ? "…" : ""}` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppShell>
   );
 }
