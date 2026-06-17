@@ -19,7 +19,9 @@ function Dashboard() {
   const week = currentWeekMonday();
   const navigate = useNavigate();
   const genBrief = useServerFn(generateBrief);
+  const seedDemo = useServerFn(seedDemoClient);
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["dashboard", week],
