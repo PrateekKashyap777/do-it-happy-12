@@ -137,12 +137,12 @@ export function CompetitorPanel({ signals }: { signals: Signal[] }) {
               {d.views != null && (
                 <span className="text-xs font-mono text-foreground">{Number(d.views).toLocaleString()} views</span>
               )}
-              {d.published_at && (
+              {!!d.published_at && (
                 <span className="text-xs text-muted-foreground">
                   {new Date(d.published_at as string).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                 </span>
               )}
-              {d.url && (
+              {!!d.url && (
                 <a href={d.url as string} target="_blank" rel="noopener noreferrer"
                   className="text-xs text-accent hover:underline" onClick={(e) => e.stopPropagation()}>
                   View →
