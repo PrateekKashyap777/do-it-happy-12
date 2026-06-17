@@ -48,6 +48,14 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
     if (d.whatsapp_response_rate) buyerStats.push({ label: "WA response", value: `${d.whatsapp_response_rate}%`, positive: Number(d.whatsapp_response_rate) >= 30 });
     if (d.ctr) buyerStats.push({ label: "Top CTR", value: `${d.ctr}%` });
     if (d.site_visits) buyerStats.push({ label: "Site visits", value: String(d.site_visits), positive: true });
+    if (d.rising_count !== undefined)
+      buyerStats.push({ label: "Rising KWs", value: String(d.rising_count), positive: Number(d.rising_count) > 0 });
+    if (d.high_intent_count !== undefined)
+      buyerStats.push({ label: "High intent", value: String(d.high_intent_count), positive: Number(d.high_intent_count) > 0 });
+    if (d.total_volume && Number(d.total_volume) > 0)
+      buyerStats.push({ label: "Total searches", value: Number(d.total_volume).toLocaleString() });
+    if (d.top_rising && Array.isArray(d.top_rising) && (d.top_rising as unknown[]).length > 0)
+      buyerStats.push({ label: "Top rising", value: String((d.top_rising as unknown[])[0] ?? "") });
   });
 
   const maxVol = Math.max(
