@@ -29,6 +29,16 @@ export interface BuyerPersona {
   hook: string;
 }
 
+export interface SocialProfile {
+  id: string;
+  name: string;
+  instagram?: string;
+  facebook?: string;
+  last_reviewed?: string | null;
+  notes?: string;
+  [key: string]: string | null | undefined;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -36,6 +46,7 @@ export interface Client {
   keywords: string[];
   competitors: string[];
   buyer_personas: BuyerPersona[];
+  social_profiles: SocialProfile[];
   system_prompt: string;
   gsc_property_url: string;
   brief_delivery_method: string;

@@ -17,9 +17,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import type { Client, BuyerPersona } from "@/lib/terrain-types";
+import type { Client, BuyerPersona, SocialProfile } from "@/lib/terrain-types";
 import { Plus, X, Sparkles } from "lucide-react";
 import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
+import { SocialWatchlist } from "@/components/SocialWatchlist";
 
 export const Route = createFileRoute("/_authenticated/clients/$id/settings")({
   component: ClientSettings,
@@ -31,6 +32,10 @@ function ClientSettings() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<Client | null>(null);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [socialProfiles, setSocialProfiles] = useState<SocialProfile[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newIG, setNewIG] = useState("");
+  const [newFB, setNewFB] = useState("");
 
   const { data } = useQuery({
     queryKey: ["client", id],
@@ -41,7 +46,12 @@ function ClientSettings() {
     },
   });
 
-  useEffect(() => { if (data) setForm(data); }, [data]);
+  useEffect(() => {
+    if (data) {
+      setForm(data);
+      setSocialProfiles((data.social_profiles as SocialProfile[]) ?? []);
+    }
+  }, [data]);
 
   if (!form) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading...</div></AppShell>;
@@ -59,6 +69,7 @@ function ClientSettings() {
         keywords: form.keywords,
         competitors: form.competitors,
         buyer_personas: form.buyer_personas as never,
+        social_profiles: socialProfiles as never,
         system_prompt: form.system_prompt,
         gsc_property_url: form.gsc_property_url,
         brief_delivery_method: form.brief_delivery_method,
@@ -79,6 +90,26 @@ function ClientSettings() {
     if (error) { toast.error(error.message); return; }
     toast.success("Client deleted");
     navigate({ to: "/clients" });
+  }
+
+  function addProfile() {
+    if (!newName.trim()) return;
+    const updated: SocialProfile[] = [
+      ...socialProfiles,
+      {
+        id: crypto.randomUUID(),
+        name: newName.trim(),
+        instagram: newIG.trim() || undefined,
+        facebook: newFB.trim() || undefined,
+        last_reviewed: null,
+      },
+    ];
+    setSocialProfiles(updated);
+    setNewName(""); setNewIG(""); setNewFB("");
+  }
+
+  function removeProfile(profileId: string) {
+    setSocialProfiles((prev) => prev.filter((p) => p.id !== profileId));
   }
 
   return (
@@ -154,6 +185,48 @@ function ClientSettings() {
           </Field>
           <Field label="Competitors"><TagInput value={form.competitors} onChange={(v) => patch({ competitors: v })} placeholder="Add a competitor" /></Field>
           <Field label="GSC Property URL"><Input value={form.gsc_property_url} onChange={(e) => patch({ gsc_property_url: e.target.value })} /></Field>
+        </Section>
+
+        <Section title="Social Profiles">
+          <div className="space-y-3">
+            <div>
+              <Label className="terr-label">Competitor Social Profiles</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Instagram and Facebook accounts to monitor weekly. Links open directly
+                in the Client Detail page for quick review.
+              </p>
+            </div>
+
+            {socialProfiles.map((p) => (
+              <div key={p.id} className="terr-elevated p-3 rounded-sm flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{p.name}</p>
+                  <div className="flex gap-3 mt-0.5 text-[10px] text-muted-foreground">
+                    {p.instagram && <span style={{ color: "#C94060" }}>IG @{p.instagram}</span>}
+                    {p.facebook && <span style={{ color: "#1877F2" }}>FB {p.facebook}</span>}
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-danger"
+                  onClick={() => removeProfile(p.id)}>Remove</Button>
+              </div>
+            ))}
+
+            <div className="terr-elevated p-3 rounded-sm space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Add competitor account</p>
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)}
+                placeholder="Competitor name (e.g. Pacific Golf Estate)" className="text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={newIG} onChange={(e) => setNewIG(e.target.value)}
+                  placeholder="Instagram handle (without @)" className="text-sm" />
+                <Input value={newFB} onChange={(e) => setNewFB(e.target.value)}
+                  placeholder="Facebook page name" className="text-sm" />
+              </div>
+              <Button variant="outline" size="sm" onClick={addProfile} disabled={!newName.trim()}
+                className="w-full text-xs">
+                + Add profile
+              </Button>
+            </div>
+          </div>
         </Section>
 
         <Section title="Buyer Personas">

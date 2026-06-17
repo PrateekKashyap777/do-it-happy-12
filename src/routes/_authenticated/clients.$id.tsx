@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { AddSignalModal } from "@/components/AddSignalModal";
 import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
+import { SocialWatchlist } from "@/components/SocialWatchlist";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -21,7 +22,7 @@ import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
 import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors, pullRERASignals, pullBuyerBehaviourSignals, pullMetaAds } from "@/lib/signals.functions";
 import { currentWeekMonday, getErrorMessage, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
-  Client, Signal, Brief, SignalType,
+  Client, Signal, Brief, SignalType, SocialProfile,
 } from "@/lib/terrain-types";
 import { SIGNAL_TYPE_LABELS, SIGNAL_SOURCE_LABELS } from "@/lib/terrain-types";
 
@@ -513,6 +514,23 @@ function ClientDetail() {
               Discover Keywords
             </Button>
           </div>
+
+          {((client.social_profiles as SocialProfile[]) ?? []).length > 0 && (
+            <div className="terr-card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="terr-label">Social Watchlist</div>
+                <span className="text-[10px] text-muted-foreground">
+                  {((client.social_profiles as SocialProfile[]) ?? []).length} profile{((client.social_profiles as SocialProfile[]) ?? []).length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <SocialWatchlist
+                clientId={client.id}
+                profiles={(client.social_profiles as SocialProfile[]) ?? []}
+                weekDate={week}
+                onUpdated={refetch}
+              />
+            </div>
+          )}
 
           <div className="terr-card p-5">
             <div className="terr-label mb-3">Brief Status</div>
