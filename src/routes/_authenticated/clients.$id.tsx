@@ -22,7 +22,7 @@ import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
 import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors, pullRERASignals, pullBuyerBehaviourSignals, pullMetaAds } from "@/lib/signals.functions";
 import { currentWeekMonday, getErrorMessage, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
-  Client, Signal, Brief, SignalType,
+  Client, Signal, Brief, SignalType, SocialProfile,
 } from "@/lib/terrain-types";
 import { SIGNAL_TYPE_LABELS, SIGNAL_SOURCE_LABELS } from "@/lib/terrain-types";
 
