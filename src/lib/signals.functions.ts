@@ -564,3 +564,188 @@ export const pullBuyerBehaviourSignals = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { inserted: 1 };
   });
+
+// ─── 7. META ADS LIBRARY ────────────────────────────────────────────────────
+const MetaAdsInput = z.object({
+  clientId: z.string(),
+  competitors: z.array(z.string()).min(1),
+  market: z.string().default(""),
+  weekDate: z.string(),
+});
+
+interface MetaAd {
+  id: string;
+  page_name?: string;
+  ad_creative_bodies?: string[];
+  ad_creative_link_titles?: string[];
+  ad_delivery_start_time?: string;
+  ad_snapshot_url?: string;
+  publisher_platforms?: string[];
+}
+
+export const pullMetaAds = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => MetaAdsInput.parse(input))
+  .handler(async ({ data }) => {
+    const { clientId, competitors, market, weekDate } = data;
+    const token = process.env.META_ACCESS_TOKEN;
+    if (!token) throw new Error("Missing META_ACCESS_TOKEN");
+
+    const rows: SignalRow[] = [];
+    const seenIds = new Set<string>();
+
+    for (const comp of competitors.slice(0, 8)) {
+      try {
+        const url = new URL("https://graph.facebook.com/v19.0/ads_archive");
+        url.searchParams.set("access_token", token);
+        url.searchParams.set("ad_type", "ALL");
+        url.searchParams.set("ad_reached_countries", JSON.stringify(["IN"]));
+        url.searchParams.set("search_terms", comp);
+        url.searchParams.set("ad_active_status", "ACTIVE");
+        url.searchParams.set("limit", "5");
+        url.searchParams.set(
+          "fields",
+          [
+            "id",
+            "page_name",
+            "ad_creative_bodies",
+            "ad_creative_link_titles",
+            "ad_delivery_start_time",
+            "ad_snapshot_url",
+            "publisher_platforms",
+          ].join(","),
+        );
+
+        const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) continue;
+        const json = (await res.json()) as { data?: MetaAd[] };
+
+        for (const ad of json.data ?? []) {
+          if (!ad.id || seenIds.has(ad.id)) continue;
+          seenIds.add(ad.id);
+
+          const body = ad.ad_creative_bodies?.[0] ?? "";
+          const headline = ad.ad_creative_link_titles?.[0] ?? "";
+          const platforms = ad.publisher_platforms?.join(", ") ?? "Meta";
+
+          let daysRunning = 0;
+          if (ad.ad_delivery_start_time) {
+            daysRunning = Math.floor(
+              (Date.now() - new Date(ad.ad_delivery_start_time).getTime()) / 86400000,
+            );
+          }
+
+          const urgency: "high" | "medium" | "low" =
+            daysRunning > 45 ? "high" : daysRunning > 14 ? "medium" : "low";
+
+          const startDate = ad.ad_delivery_start_time
+            ? new Date(ad.ad_delivery_start_time).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : "";
+
+          rows.push({
+            client_id: clientId,
+            signal_type: "competitor",
+            source: "rss",
+            title: `${ad.page_name ?? comp}: "${(headline || body).slice(0, 80)}"`.slice(0, 240),
+            content: [
+              body.slice(0, 150) || "Active Meta ad",
+              `Platforms: ${platforms}`,
+              startDate ? `Running since: ${startDate}` : null,
+              daysRunning > 0
+                ? `${daysRunning} days running${daysRunning > 45 ? " — proven creative" : ""}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            data: {
+              ad_id: ad.id,
+              page_name: ad.page_name ?? comp,
+              headline,
+              body: body.slice(0, 300),
+              platforms: ad.publisher_platforms ?? [],
+              start_date: ad.ad_delivery_start_time ?? "",
+              days_running: daysRunning,
+              snapshot_url: ad.ad_snapshot_url ?? "",
+              source: "meta_ads_library",
+              competitor: comp,
+              platform: "meta",
+            },
+            urgency,
+            week_date: weekDate,
+            is_included: true,
+          });
+        }
+      } catch {
+        /* skip failed competitor */
+      }
+    }
+
+    // Also pull market-wide property ads
+    if (market && rows.length < 10) {
+      try {
+        const mktUrl = new URL("https://graph.facebook.com/v19.0/ads_archive");
+        mktUrl.searchParams.set("access_token", token);
+        mktUrl.searchParams.set("ad_type", "ALL");
+        mktUrl.searchParams.set("ad_reached_countries", JSON.stringify(["IN"]));
+        mktUrl.searchParams.set("search_terms", `${market} property real estate flat`);
+        mktUrl.searchParams.set("ad_active_status", "ACTIVE");
+        mktUrl.searchParams.set("limit", "3");
+        mktUrl.searchParams.set(
+          "fields",
+          "id,page_name,ad_creative_bodies,ad_creative_link_titles,ad_delivery_start_time,ad_snapshot_url,publisher_platforms",
+        );
+
+        const mktRes = await fetch(mktUrl.toString(), { signal: AbortSignal.timeout(10000) });
+        if (mktRes.ok) {
+          const mktJson = (await mktRes.json()) as { data?: MetaAd[] };
+          for (const ad of mktJson.data ?? []) {
+            if (!ad.id || seenIds.has(ad.id)) continue;
+            seenIds.add(ad.id);
+            const body = ad.ad_creative_bodies?.[0] ?? "";
+            const headline = ad.ad_creative_link_titles?.[0] ?? "";
+            let daysRunning = 0;
+            if (ad.ad_delivery_start_time) {
+              daysRunning = Math.floor(
+                (Date.now() - new Date(ad.ad_delivery_start_time).getTime()) / 86400000,
+              );
+            }
+            rows.push({
+              client_id: clientId,
+              signal_type: "competitor",
+              source: "rss",
+              title: `Market: ${ad.page_name ?? "Competitor"}: "${(headline || body).slice(0, 70)}"`.slice(0, 240),
+              content: `${body.slice(0, 150) || "Active property ad"} · ${daysRunning} days running`,
+              data: {
+                ad_id: ad.id,
+                page_name: ad.page_name,
+                headline,
+                body: body.slice(0, 300),
+                platforms: ad.publisher_platforms ?? [],
+                days_running: daysRunning,
+                snapshot_url: ad.ad_snapshot_url ?? "",
+                source: "meta_ads_library",
+                is_market_ad: true,
+                platform: "meta",
+              },
+              urgency: daysRunning > 45 ? "medium" : "low",
+              week_date: weekDate,
+              is_included: true,
+            });
+          }
+        }
+      } catch {
+        /* non-critical */
+      }
+    }
+
+    const inserted = await insertSignals(rows);
+
+    return {
+      inserted,
+      competitor_ads: rows.filter((r) => !(r.data as Record<string, unknown>).is_market_ad).length,
+      market_ads: rows.filter((r) => (r.data as Record<string, unknown>).is_market_ad).length,
+    };
+  });
