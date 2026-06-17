@@ -217,6 +217,57 @@ function ClientDetail() {
     }
   }
 
+  async function handlePullAll() {
+    if (!client) return;
+    setPullingAll(true);
+    try {
+      const kws = client.keywords ?? [];
+      const comps = client.competitors ?? [];
+      const tasks: Array<{ label: string; promise: Promise<{ inserted: number }> }> = [];
+      if (kws.length > 0) {
+        tasks.push({
+          label: "Keywords",
+          promise: pullData({ data: { clientId: client.id, keywords: kws, weekDate: week, locationCode: 2356, languageCode: "en" } })
+            .then((r) => ({ inserted: r.volumes + r.trends })),
+        });
+      }
+      tasks.push({
+        label: "News",
+        promise: pullNews({ data: { clientId: client.id, market: client.market_geography, keywords: kws, weekDate: week, limit: 8 } }),
+      });
+      tasks.push({
+        label: "AQI",
+        promise: checkAQI({ data: { clientId: client.id, market: client.market_geography, weekDate: week } }),
+      });
+      if (comps.length > 0) {
+        tasks.push({
+          label: "YouTube",
+          promise: pullYT({ data: { clientId: client.id, competitors: comps, weekDate: week, perCompetitor: 2 } }),
+        });
+      }
+      const results = await Promise.allSettled(tasks.map((t) => t.promise));
+      let total = 0;
+      const ok: string[] = [];
+      const fail: string[] = [];
+      results.forEach((r, i) => {
+        const label = tasks[i].label;
+        if (r.status === "fulfilled") {
+          total += r.value.inserted;
+          ok.push(`${label}: ${r.value.inserted}`);
+        } else {
+          fail.push(`${label}: ${getErrorMessage(r.reason, "failed")}`);
+        }
+      });
+      if (fail.length === 0) toast.success(`Pulled ${total} signals — ${ok.join(", ")}`);
+      else toast.warning(`Pulled ${total}. ${ok.join(", ")}${ok.length ? " · " : ""}Failures — ${fail.join("; ")}`);
+      refetch();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Pull All failed"));
+    } finally {
+      setPullingAll(false);
+    }
+  }
+
   if (isLoading || !client) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading client...</div></AppShell>;
   }
