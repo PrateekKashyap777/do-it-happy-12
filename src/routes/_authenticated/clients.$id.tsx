@@ -347,6 +347,11 @@ function ClientDetail() {
             <div className="terr-label mb-3">Week Summary</div>
             <div className="terr-stat">{signals.length}</div>
             <div className="text-xs text-muted-foreground mt-1">signals total · {includedCount} included</div>
+            <div className={`mt-2 text-xs ${includedCount >= 2 ? "text-success" : "text-warning"}`}>
+              {includedCount >= 2
+                ? `${includedCount} of ${signals.length} signals included — ready to generate`
+                : `Add ${2 - includedCount} more included signal${2 - includedCount === 1 ? "" : "s"} to generate`}
+            </div>
             {chartData.length > 0 && (
               <div className="mt-4 h-32">
                 <ResponsiveContainer width="100%" height="100%">
@@ -361,6 +366,23 @@ function ClientDetail() {
               </div>
             )}
           </div>
+
+          {client.keywords?.length > 0 && (
+            <Collapsible>
+              <div className="terr-card p-5">
+                <CollapsibleTrigger className="w-full flex items-center justify-between">
+                  <div className="terr-label">Tracking {client.keywords.length} keyword{client.keywords.length === 1 ? "" : "s"}</div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3 flex flex-wrap gap-1.5">
+                  {client.keywords.map((k) => (
+                    <span key={k} className="terr-badge bg-elevated text-muted-foreground text-[11px]">{k}</span>
+                  ))}
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )}
+
 
           <div className="terr-card p-5">
             <div className="terr-label mb-3">Live Data</div>
