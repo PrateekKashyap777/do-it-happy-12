@@ -26,18 +26,25 @@ function Dashboard() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["dashboard", week],
     queryFn: async () => {
-      const [clientsRes, signalsRes, briefsRes] = await Promise.all([
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const recentSince = fourWeeksAgo.toISOString().slice(0, 10);
+      const [clientsRes, signalsRes, briefsRes, recentRes] = await Promise.all([
         supabase.from("clients").select("*").order("created_at", { ascending: false }),
         supabase.from("signals").select("*").eq("week_date", week),
         supabase.from("briefs").select("*").eq("week_date", week),
+        supabase.from("briefs").select("*").eq("status", "sent")
+          .gte("week_date", recentSince).order("week_date", { ascending: false }).limit(20),
       ]);
       if (clientsRes.error) throw clientsRes.error;
       if (signalsRes.error) throw signalsRes.error;
       if (briefsRes.error) throw briefsRes.error;
+      if (recentRes.error) throw recentRes.error;
       return {
         clients: (clientsRes.data ?? []) as unknown as Client[],
         signals: (signalsRes.data ?? []) as unknown as Signal[],
         briefs: (briefsRes.data ?? []) as unknown as Brief[],
+        recentSent: (recentRes.data ?? []) as unknown as Brief[],
       };
     },
   });
