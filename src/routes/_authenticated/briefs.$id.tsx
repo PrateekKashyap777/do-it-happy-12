@@ -183,7 +183,33 @@ function BriefStudio() {
     const { error } = await supabase.from("briefs").update(patch as never).eq("id", id);
     if (error) { toast.error(error.message); return; }
     setIsDirty(false);
-    toast.success(`Marked ${BRIEF_STATUS_LABEL[status] ?? status}`);
+
+    if (
+      status === "sent" &&
+      client.brief_delivery_method === "email" &&
+      client.brief_delivery_contact &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.brief_delivery_contact)
+    ) {
+      try {
+        await sendEmail({
+          data: {
+            toEmail: client.brief_delivery_contact,
+            clientName: client.name,
+            weekDate: brief.week_date,
+            briefContent: content as BriefContent,
+            agencyName: client.is_white_label ? client.agency_name : undefined,
+          },
+        });
+        toast.success("Brief marked sent and email delivered.");
+      } catch (err) {
+        toast.warning(
+          `Marked sent but email delivery failed — ${getErrorMessage(err, "check RESEND_API_KEY in environment settings")}`,
+        );
+      }
+    } else {
+      toast.success(`Marked ${BRIEF_STATUS_LABEL[status] ?? status}`);
+    }
+
     refetch();
   }
 
@@ -270,7 +296,7 @@ function BriefStudio() {
             const isExpanded = expandedPanels.has(key);
             const signalType = SIGNAL_TYPE_FOR_SECTION[key];
             const relevantCount = signalType ? included.filter((s) => s.signal_type === signalType).length : 0;
-            const hasDataPanel = key !== "content_recommendations" && !!signalType;
+            const hasDataPanel = key !== "content_recommendations" && !!signalType && relevantCount > 0;
             const isRecs = key === "content_recommendations";
             return (
               <div key={key} className="terr-card p-5">

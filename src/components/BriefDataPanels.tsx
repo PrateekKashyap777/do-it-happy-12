@@ -25,14 +25,19 @@ export function SearchSignalsPanel({ signals }: { signals: Signal[] }) {
   const barData = sq
     .map((s) => {
       const d = getD(s);
+      const vol = asNum(d.volume);
+      const chg = asNum(d.week_change_pct) ?? asNum(d.movement_pct);
       return {
         name: s.title.length > 22 ? s.title.slice(0, 20) + "…" : s.title,
-        volume: asNum(d.volume) ?? 0,
-        change: asNum(d.week_change_pct) ?? asNum(d.movement_pct) ?? 0,
+        volume: vol ?? 0,
+        change: chg ?? 0,
         urgency: s.urgency,
+        hasData: vol !== null || chg !== null,
       };
     })
     .sort((a, b) => b.volume - a.volume);
+
+  const hasQuantitativeData = barData.some((d) => d.hasData);
 
   const withTrends = sq
     .filter((s) => Array.isArray(getD(s).values_12w))
@@ -40,7 +45,7 @@ export function SearchSignalsPanel({ signals }: { signals: Signal[] }) {
 
   return (
     <div className="space-y-4">
-      {barData.some((d) => d.volume > 0) && (
+      {hasQuantitativeData && barData.some((d) => d.volume > 0) && (
         <div>
           <div className="terr-label mb-2">Monthly search volume</div>
           <ResponsiveContainer width="100%" height={140}>
@@ -90,6 +95,13 @@ export function SearchSignalsPanel({ signals }: { signals: Signal[] }) {
           </tbody>
         </table>
       </div>
+
+      {!hasQuantitativeData && (
+        <p className="text-[11px] text-muted-foreground text-center pt-1">
+          Pull live data from Client Detail to see keyword volumes and trends.
+        </p>
+      )}
+
 
       {withTrends.length > 0 && (
         <div>
