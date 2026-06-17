@@ -233,7 +233,7 @@ function ClientDetail() {
       }
       tasks.push({
         label: "News",
-        promise: pullNews({ data: { clientId: client.id, keywords: kws, competitors: comps, weekDate: week, limit: 10 } }),
+        promise: pullNews({ data: { clientId: client.id, keywords: kws, competitors: comps, market: client.market_geography ?? "", weekDate: week, limit: 10 } }),
       });
       tasks.push({
         label: "AQI",
