@@ -17,7 +17,7 @@ type SignalRow = {
 async function insertSignals(rows: SignalRow[]) {
   if (rows.length === 0) return 0;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin.from("signals").upsert(rows, {
+  const { error } = await supabaseAdmin.from("signals").upsert(rows as never, {
     onConflict: "client_id,title,week_date,source",
     ignoreDuplicates: false,
   });
