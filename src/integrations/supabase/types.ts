@@ -85,6 +85,7 @@ export type Database = {
           market_geography: string
           name: string
           owner_id: string
+          social_profiles: Json | null
           status: string
           system_prompt: string
           updated_at: string
@@ -103,6 +104,7 @@ export type Database = {
           market_geography: string
           name: string
           owner_id?: string
+          social_profiles?: Json | null
           status?: string
           system_prompt?: string
           updated_at?: string
@@ -121,6 +123,7 @@ export type Database = {
           market_geography?: string
           name?: string
           owner_id?: string
+          social_profiles?: Json | null
           status?: string
           system_prompt?: string
           updated_at?: string

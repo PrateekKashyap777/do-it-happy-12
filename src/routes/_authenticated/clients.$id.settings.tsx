@@ -17,9 +17,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import type { Client, BuyerPersona } from "@/lib/terrain-types";
+import type { Client, BuyerPersona, SocialProfile } from "@/lib/terrain-types";
 import { Plus, X, Sparkles } from "lucide-react";
 import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
+import { SocialWatchlist } from "@/components/SocialWatchlist";
 
 export const Route = createFileRoute("/_authenticated/clients/$id/settings")({
   component: ClientSettings,
@@ -31,6 +32,10 @@ function ClientSettings() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<Client | null>(null);
   const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [socialProfiles, setSocialProfiles] = useState<SocialProfile[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newIG, setNewIG] = useState("");
+  const [newFB, setNewFB] = useState("");
 
   const { data } = useQuery({
     queryKey: ["client", id],
@@ -41,7 +46,12 @@ function ClientSettings() {
     },
   });
 
-  useEffect(() => { if (data) setForm(data); }, [data]);
+  useEffect(() => {
+    if (data) {
+      setForm(data);
+      setSocialProfiles((data.social_profiles as SocialProfile[]) ?? []);
+    }
+  }, [data]);
 
   if (!form) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading...</div></AppShell>;
@@ -59,6 +69,7 @@ function ClientSettings() {
         keywords: form.keywords,
         competitors: form.competitors,
         buyer_personas: form.buyer_personas as never,
+        social_profiles: socialProfiles as never,
         system_prompt: form.system_prompt,
         gsc_property_url: form.gsc_property_url,
         brief_delivery_method: form.brief_delivery_method,
@@ -79,6 +90,26 @@ function ClientSettings() {
     if (error) { toast.error(error.message); return; }
     toast.success("Client deleted");
     navigate({ to: "/clients" });
+  }
+
+  function addProfile() {
+    if (!newName.trim()) return;
+    const updated: SocialProfile[] = [
+      ...socialProfiles,
+      {
+        id: crypto.randomUUID(),
+        name: newName.trim(),
+        instagram: newIG.trim() || undefined,
+        facebook: newFB.trim() || undefined,
+        last_reviewed: null,
+      },
+    ];
+    setSocialProfiles(updated);
+    setNewName(""); setNewIG(""); setNewFB("");
+  }
+
+  function removeProfile(profileId: string) {
+    setSocialProfiles((prev) => prev.filter((p) => p.id !== profileId));
   }
 
   return (
