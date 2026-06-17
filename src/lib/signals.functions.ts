@@ -25,7 +25,6 @@ async function insertSignals(rows: SignalRow[]) {
   return rows.length;
 }
 
-// Minimal RSS/XML extraction without a parser dependency.
 function extractTags(xml: string, tag: string): string[] {
   const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "gi");
   const out: string[] = [];
@@ -38,161 +37,304 @@ function stripCdata(s: string): string {
   return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim();
 }
 
-// ─── 1. NEWS via Google News RSS ─────────────────────────────────────────────
+// ─── 1. NEWS via Indian real estate RSS feeds ────────────────────────────────
+const REAL_ESTATE_FEEDS = [
+  { name: "ET Real Estate", url: "https://economictimes.indiatimes.com/industry/services/property-/-citi-/-land/rssfeeds/20308536.cms" },
+  { name: "MagicBricks", url: "https://www.magicbricks.com/blog/feed" },
+  { name: "Housing.com", url: "https://housing.com/news/feed" },
+  { name: "99acres", url: "https://www.99acres.com/articles/feed" },
+];
+
 const NewsInput = z.object({
   clientId: z.string(),
-  market: z.string().min(1),
   keywords: z.array(z.string()).default([]),
+  competitors: z.array(z.string()).default([]),
   weekDate: z.string(),
-  limit: z.number().int().min(1).max(20).default(8),
+  limit: z.number().int().min(1).max(15).default(10),
 });
 
 export const pullNewsSignals = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => NewsInput.parse(input))
   .handler(async ({ data }) => {
-    const { clientId, market, keywords, weekDate, limit } = data;
-    const query = encodeURIComponent(
-      `${market} real estate ${keywords.slice(0, 3).join(" OR ")}`.trim(),
-    );
-    const url = `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`News RSS error ${res.status}`);
-    const xml = await res.text();
-    const items = extractTags(xml, "item").slice(0, limit);
-    const since = Date.now() - 1000 * 60 * 60 * 24 * 14;
-    const rows: SignalRow[] = items.flatMap((item) => {
-      const title = stripCdata(extractTags(item, "title")[0] ?? "");
-      const link = stripCdata(extractTags(item, "link")[0] ?? "");
-      const pub = stripCdata(extractTags(item, "pubDate")[0] ?? "");
-      const source = stripCdata(extractTags(item, "source")[0] ?? "");
-      const ts = pub ? new Date(pub).getTime() : NaN;
-      if (!title || (Number.isFinite(ts) && ts < since)) return [];
-      return [{
-        client_id: clientId,
-        signal_type: "news",
-        source: "rss",
-        title: title.slice(0, 240),
-        content: source ? `${source} — ${pub}` : pub,
-        data: { url: link, published_at: pub, publisher: source },
-        urgency: "medium",
-        week_date: weekDate,
-        is_included: true,
-      }];
-    });
-    const inserted = await insertSignals(rows);
-    return { inserted };
-  });
+    const { clientId, keywords, competitors, weekDate, limit } = data;
+    const since = Date.now() - 1000 * 60 * 60 * 24 * 7;
+    const allTerms = [...keywords, ...competitors].map((t) => t.toLowerCase());
 
-// ─── 2. AQI via Open-Meteo air-quality (no key required) ─────────────────────
-const AQIInput = z.object({
-  clientId: z.string(),
-  market: z.string().min(1),
-  weekDate: z.string(),
-});
-
-const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
-  gurgaon: { lat: 28.4595, lng: 77.0266 },
-  gurugram: { lat: 28.4595, lng: 77.0266 },
-  delhi: { lat: 28.6139, lng: 77.209 },
-  noida: { lat: 28.5355, lng: 77.391 },
-  mumbai: { lat: 19.076, lng: 72.8777 },
-  bangalore: { lat: 12.9716, lng: 77.5946 },
-  bengaluru: { lat: 12.9716, lng: 77.5946 },
-  pune: { lat: 18.5204, lng: 73.8567 },
-  hyderabad: { lat: 17.385, lng: 78.4867 },
-  chennai: { lat: 13.0827, lng: 80.2707 },
-  kolkata: { lat: 22.5726, lng: 88.3639 },
-};
-
-function resolveCoords(market: string): { lat: number; lng: number } {
-  const key = market.toLowerCase().split(/[\s,]+/).find((p) => CITY_COORDS[p]);
-  return (key && CITY_COORDS[key]) || CITY_COORDS.gurgaon;
-}
-
-export const checkAQISignal = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => AQIInput.parse(input))
-  .handler(async ({ data }) => {
-    const { clientId, market, weekDate } = data;
-    const { lat, lng } = resolveCoords(market);
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi,pm2_5,pm10`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`AQI error ${res.status}`);
-    const json = (await res.json()) as {
-      current?: { us_aqi?: number; pm2_5?: number; pm10?: number; time?: string };
-    };
-    const aqi = json.current?.us_aqi;
-    if (aqi === undefined || aqi === null) return { inserted: 0 };
-    const urgency: "high" | "medium" | "low" =
-      aqi >= 150 ? "high" : aqi >= 100 ? "medium" : "low";
-    const label =
-      aqi >= 200 ? "Very Unhealthy"
-      : aqi >= 150 ? "Unhealthy"
-      : aqi >= 100 ? "Unhealthy for Sensitive Groups"
-      : aqi >= 50 ? "Moderate"
-      : "Good";
-    const rows: SignalRow[] = [{
-      client_id: clientId,
-      signal_type: "market",
-      source: "aqi",
-      title: `${market} AQI ${Math.round(aqi)} — ${label}`,
-      content: `PM2.5 ${json.current?.pm2_5 ?? "—"} µg/m³ · PM10 ${json.current?.pm10 ?? "—"} µg/m³ (as of ${json.current?.time ?? "now"})`,
-      data: { aqi, pm2_5: json.current?.pm2_5, pm10: json.current?.pm10, label, lat, lng },
-      urgency,
-      week_date: weekDate,
-      is_included: true,
-    }];
-    const inserted = await insertSignals(rows);
-    return { inserted, aqi, label };
-  });
-
-// ─── 3. YOUTUBE competitor activity via YouTube search RSS ───────────────────
-const YTInput = z.object({
-  clientId: z.string(),
-  competitors: z.array(z.string()).min(1),
-  weekDate: z.string(),
-  perCompetitor: z.number().int().min(1).max(5).default(2),
-});
-
-export const pullYouTubeCompetitors = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => YTInput.parse(input))
-  .handler(async ({ data }) => {
-    const { clientId, competitors, weekDate, perCompetitor } = data;
-    const since = Date.now() - 1000 * 60 * 60 * 24 * 14;
-    const all: SignalRow[] = [];
-    // YouTube exposes a per-query RSS via a search page wrapper isn't stable;
-    // use the public search-feed endpoint that returns Atom XML.
-    for (const comp of competitors.slice(0, 8)) {
-      const q = encodeURIComponent(`${comp} real estate`);
-      const url = `https://www.youtube.com/feeds/videos.xml?search_query=${q}`;
-      try {
-        const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-        if (!res.ok) continue;
+    const feedResults = await Promise.allSettled(
+      REAL_ESTATE_FEEDS.map(async (feed) => {
+        const res = await fetch(feed.url, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; Terrain/1.0)" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!res.ok) return { items: [] as SignalRow[] };
         const xml = await res.text();
-        const entries = extractTags(xml, "entry").slice(0, perCompetitor);
-        for (const e of entries) {
-          const title = stripCdata(extractTags(e, "title")[0] ?? "");
-          const pub = stripCdata(extractTags(e, "published")[0] ?? "");
-          const channel = stripCdata(extractTags(e, "name")[0] ?? comp);
-          const linkMatch = e.match(/<link[^>]*href="([^"]+)"/);
-          const link = linkMatch?.[1] ?? "";
+        const items = extractTags(xml, "item");
+        const rows: SignalRow[] = [];
+
+        for (const item of items) {
+          const title = stripCdata(extractTags(item, "title")[0] ?? "");
+          const link = stripCdata(extractTags(item, "link")[0] ?? "");
+          const pub = stripCdata(extractTags(item, "pubDate")[0] ?? "");
+          const desc = stripCdata(extractTags(item, "description")[0] ?? "");
+
+          if (!title) continue;
           const ts = pub ? new Date(pub).getTime() : NaN;
-          if (!title || (Number.isFinite(ts) && ts < since)) continue;
-          all.push({
+          if (Number.isFinite(ts) && ts < since) continue;
+
+          if (allTerms.length > 0) {
+            const combined = (title + " " + desc).toLowerCase();
+            if (!allTerms.some((t) => combined.includes(t))) continue;
+          }
+
+          rows.push({
             client_id: clientId,
-            signal_type: "competitor",
-            source: "youtube",
-            title: `${channel}: ${title}`.slice(0, 240),
-            content: `YouTube · ${pub}`,
-            data: { url: link, published_at: pub, channel, competitor: comp, platform: "youtube" },
+            signal_type: "news",
+            source: "rss",
+            title: title.slice(0, 200),
+            content: desc.slice(0, 300) || `${feed.name} — ${pub}`,
+            data: { url: link, feed_source: feed.name, published_at: pub },
             urgency: "medium",
             week_date: weekDate,
             is_included: true,
           });
         }
-      } catch {
-        // skip this competitor; surface aggregate via Promise.allSettled at caller
+        return { items: rows };
+      }),
+    );
+
+    const allRows: SignalRow[] = [];
+    const seenTitles = new Set<string>();
+    for (const result of feedResults) {
+      if (result.status === "fulfilled") {
+        for (const row of result.value.items) {
+          if (!seenTitles.has(row.title)) {
+            seenTitles.add(row.title);
+            allRows.push(row);
+          }
+        }
       }
     }
-    const inserted = await insertSignals(all);
+
+    const inserted = await insertSignals(allRows.slice(0, limit));
     return { inserted };
+  });
+
+// ─── 2. AQI via WAQI API (source vs destination logic) ───────────────────────
+const AQIInput = z.object({
+  clientId: z.string(),
+  weekDate: z.string(),
+  sourceCities: z.array(z.string()).default(["delhi", "gurgaon"]),
+  destinationCity: z.string().default("dehradun"),
+  threshold: z.number().default(280),
+});
+
+const WAQI_CITY_SLUGS: Record<string, string> = {
+  delhi: "delhi", gurgaon: "gurgaon", gurugram: "gurgaon",
+  noida: "noida", chandigarh: "chandigarh", mumbai: "mumbai",
+  pune: "pune", dehradun: "dehradun", bangalore: "bangalore",
+  bengaluru: "bangalore", hyderabad: "hyderabad", chennai: "chennai",
+};
+
+async function fetchWAQI(city: string, token: string): Promise<number | null> {
+  const slug = WAQI_CITY_SLUGS[city.toLowerCase()] ?? city.toLowerCase();
+  try {
+    const res = await fetch(`https://api.waqi.info/feed/${slug}/?token=${token}`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { status: string; data?: { aqi?: number } };
+    return json.status === "ok" && typeof json.data?.aqi === "number" ? json.data.aqi : null;
+  } catch { return null; }
+}
+
+export const checkAQISignal = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => AQIInput.parse(input))
+  .handler(async ({ data }) => {
+    const { clientId, weekDate, sourceCities, destinationCity, threshold } = data;
+    const token = process.env.AQI_TOKEN ?? "demo";
+
+    const cityList = [...sourceCities, destinationCity];
+    const results = await Promise.all(
+      cityList.map(async (city) => ({ city, aqi: await fetchWAQI(city, token) })),
+    );
+
+    const aqiMap = Object.fromEntries(results.map((r) => [r.city, r.aqi]));
+    const sourceAqis = sourceCities.map((c) => aqiMap[c]).filter((v): v is number => v !== null);
+    const destAqi = aqiMap[destinationCity] ?? null;
+    const maxSourceAqi = sourceAqis.length > 0 ? Math.max(...sourceAqis) : null;
+    const triggered = maxSourceAqi !== null && maxSourceAqi >= threshold;
+
+    const urgency: "high" | "medium" | "low" =
+      triggered ? "high" : maxSourceAqi !== null && maxSourceAqi >= 150 ? "medium" : "low";
+
+    const aqiParts = results.map(
+      (r) => `${r.city.charAt(0).toUpperCase() + r.city.slice(1)}: ${r.aqi ?? "—"}`,
+    );
+
+    const titleLine = triggered
+      ? `AQI Spike — Campaign Trigger Active (${sourceCities[0]}: ${maxSourceAqi})`
+      : `AQI Update — ${sourceCities[0]}: ${maxSourceAqi ?? "—"}, ${destinationCity}: ${destAqi ?? "—"}`;
+
+    const actionLine = triggered
+      ? ` · Threshold exceeded — AQI burst campaign recommended.`
+      : "";
+
+    const rows: SignalRow[] = [{
+      client_id: clientId,
+      signal_type: "market",
+      source: "aqi",
+      title: titleLine,
+      content: aqiParts.join(" · ") + actionLine,
+      data: {
+        ...Object.fromEntries(results.map((r) => [`${r.city}_aqi`, r.aqi])),
+        max_source_aqi: maxSourceAqi,
+        destination_aqi: destAqi,
+        triggered,
+        threshold,
+        source_cities: sourceCities,
+        destination_city: destinationCity,
+      },
+      urgency,
+      week_date: weekDate,
+      is_included: true,
+    }];
+
+    const inserted = await insertSignals(rows);
+    return { inserted, triggered, maxSourceAqi, destAqi };
+  });
+
+// ─── 3. YOUTUBE competitors via Data API v3 (real view counts) ───────────────
+const YTInput = z.object({
+  clientId: z.string(),
+  competitors: z.array(z.string()).min(1),
+  marketGeography: z.string().default(""),
+  weekDate: z.string(),
+  minViews: z.number().default(200),
+});
+
+export const pullYouTubeCompetitors = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => YTInput.parse(input))
+  .handler(async ({ data }) => {
+    const { clientId, competitors, marketGeography, weekDate, minViews } = data;
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) throw new Error("Missing YOUTUBE_API_KEY");
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const rows: SignalRow[] = [];
+
+    for (const comp of competitors.slice(0, 6)) {
+      try {
+        const chRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(comp)}&key=${apiKey}&maxResults=1`,
+        );
+        const chData = (await chRes.json()) as { items?: Array<{ id?: { channelId?: string } }> };
+        const channelId = chData.items?.[0]?.id?.channelId;
+        if (!channelId) continue;
+
+        const vRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&order=date&type=video&publishedAfter=${sevenDaysAgo}&key=${apiKey}&maxResults=5`,
+        );
+        const vData = (await vRes.json()) as {
+          items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; publishedAt?: string; description?: string } }>;
+        };
+        if (!vData.items?.length) continue;
+
+        const videoIds = vData.items.map((v) => v.id?.videoId).filter(Boolean).join(",");
+
+        const stRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`,
+        );
+        const stData = (await stRes.json()) as {
+          items?: Array<{ id?: string; statistics?: { viewCount?: string; likeCount?: string } }>;
+        };
+        const statsMap = new Map(stData.items?.map((s) => [s.id, s.statistics]) ?? []);
+
+        for (const video of vData.items) {
+          const videoId = video.id?.videoId;
+          if (!videoId) continue;
+          const stats = statsMap.get(videoId);
+          const views = parseInt(stats?.viewCount ?? "0", 10);
+          if (views < minViews) continue;
+          const likes = parseInt(stats?.likeCount ?? "0", 10);
+          const title = video.snippet?.title ?? "";
+          const published = video.snippet?.publishedAt ?? "";
+          const desc = (video.snippet?.description ?? "").slice(0, 150);
+
+          rows.push({
+            client_id: clientId,
+            signal_type: "competitor",
+            source: "youtube",
+            title: `${comp}: "${title}"`.slice(0, 240),
+            content: `${views.toLocaleString()} views · ${likes.toLocaleString()} likes · ${new Date(published).toLocaleDateString("en-IN")}. ${desc}`,
+            data: {
+              channel_id: channelId,
+              video_id: videoId,
+              views,
+              likes,
+              published_at: published,
+              url: `https://www.youtube.com/watch?v=${videoId}`,
+              competitor: comp,
+              platform: "youtube",
+            },
+            urgency: views > 10000 ? "high" : views > 2000 ? "medium" : "low",
+            week_date: weekDate,
+            is_included: true,
+          });
+        }
+      } catch { /* skip failed competitor */ }
+    }
+
+    if (marketGeography) {
+      try {
+        const mktRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q=${encodeURIComponent(marketGeography + " property real estate")}&order=viewCount&publishedAfter=${sevenDaysAgo}&key=${apiKey}&maxResults=5`,
+        );
+        const mktData = (await mktRes.json()) as {
+          items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string; publishedAt?: string } }>;
+        };
+        const mktIds = (mktData.items ?? []).map((v) => v.id?.videoId).filter(Boolean).slice(0, 3).join(",");
+
+        if (mktIds) {
+          const mktStRes = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${mktIds}&key=${apiKey}`,
+          );
+          const mktStData = (await mktStRes.json()) as {
+            items?: Array<{ id?: string; statistics?: { viewCount?: string } }>;
+          };
+          const mktStatsMap = new Map(mktStData.items?.map((s) => [s.id, s.statistics]) ?? []);
+
+          for (const item of (mktData.items ?? []).slice(0, 3)) {
+            const videoId = item.id?.videoId;
+            if (!videoId) continue;
+            const views = parseInt(mktStatsMap.get(videoId)?.viewCount ?? "0", 10);
+            if (views < minViews) continue;
+
+            rows.push({
+              client_id: clientId,
+              signal_type: "competitor",
+              source: "youtube",
+              title: `Market: "${item.snippet?.title ?? ""}"`.slice(0, 240),
+              content: `${item.snippet?.channelTitle ?? ""} · ${views.toLocaleString()} views · Top in ${marketGeography} this week`,
+              data: {
+                video_id: videoId,
+                views,
+                channel: item.snippet?.channelTitle,
+                published_at: item.snippet?.publishedAt,
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+                is_market_video: true,
+                platform: "youtube",
+              },
+              urgency: views > 5000 ? "high" : "medium",
+              week_date: weekDate,
+              is_included: true,
+            });
+          }
+        }
+      } catch { /* market search failure is non-critical */ }
+    }
+
+    const inserted = await insertSignals(rows);
+    return {
+      inserted,
+      competitor_videos: rows.filter((r) => !r.data.is_market_video).length,
+      market_videos: rows.filter((r) => r.data.is_market_video).length,
+    };
   });

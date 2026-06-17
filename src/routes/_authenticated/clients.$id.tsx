@@ -233,16 +233,18 @@ function ClientDetail() {
       }
       tasks.push({
         label: "News",
-        promise: pullNews({ data: { clientId: client.id, market: client.market_geography, keywords: kws, weekDate: week, limit: 8 } }),
+        promise: pullNews({ data: { clientId: client.id, keywords: kws, competitors: comps, weekDate: week, limit: 10 } }),
       });
       tasks.push({
         label: "AQI",
-        promise: checkAQI({ data: { clientId: client.id, market: client.market_geography, weekDate: week } }),
+        promise: checkAQI({ data: { clientId: client.id, weekDate: week, sourceCities: ["delhi", "gurgaon"], destinationCity: "dehradun", threshold: 280 } })
+          .then((r) => ({ inserted: r.inserted })),
       });
       if (comps.length > 0) {
         tasks.push({
           label: "YouTube",
-          promise: pullYT({ data: { clientId: client.id, competitors: comps, weekDate: week, perCompetitor: 2 } }),
+          promise: pullYT({ data: { clientId: client.id, competitors: comps, marketGeography: client.market_geography ?? "", weekDate: week, minViews: 200 } })
+            .then((r) => ({ inserted: r.inserted })),
         });
       }
       const results = await Promise.allSettled(tasks.map((t) => t.promise));
