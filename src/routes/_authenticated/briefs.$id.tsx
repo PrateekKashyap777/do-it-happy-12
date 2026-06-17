@@ -296,10 +296,11 @@ function BriefStudio() {
 
           <div className="terr-card p-5 space-y-3">
             <div className="terr-label">Reviewer Notes</div>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-xs" />
+            <Textarea value={notes} onChange={(e) => { setNotes(e.target.value); setIsDirty(true); }} rows={3} className="text-xs" />
             <Button variant="outline" className="w-full" onClick={saveDraft} disabled={saving}>
               {saving ? "Saving..." : "Save Draft"}
             </Button>
+            <p className="text-[10px] text-muted-foreground text-center">⌘S to save</p>
           </div>
 
           <div className="terr-card p-5 space-y-2">
@@ -316,12 +317,22 @@ function BriefStudio() {
             </Button>
             <Button
               className="w-full bg-primary hover:bg-primary-hover"
-              onClick={() => updateStatus("sent")}
+              onClick={() => setConfirmSend(true)}
               disabled={brief.status === "sent"}
             >
               <Send className="h-3.5 w-3.5 mr-2" /> Mark Sent
             </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              onClick={() => setConfirmRegen(true)}
+              disabled={regenAll || included.length < 2}
+            >
+              <Sparkles className={`h-3.5 w-3.5 mr-2 ${regenAll ? "animate-spin" : ""}`} />
+              {regenAll ? "Regenerating..." : "Regenerate All"}
+            </Button>
           </div>
+
 
           <div className="terr-card p-5 space-y-2">
             <div className="terr-label">Delivery</div>
