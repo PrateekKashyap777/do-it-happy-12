@@ -316,9 +316,18 @@ function ClientDetail() {
                     </span>
                   </div>
                   <div className="text-sm font-medium">{s.title}</div>
+                  {(() => {
+                    const metrics = signalMetrics((s.data ?? {}) as Record<string, unknown>);
+                    return metrics.length > 0 ? (
+                      <div className="mt-1.5 text-[11px] text-muted-foreground font-mono">
+                        {metrics.join(" · ")}
+                      </div>
+                    ) : null;
+                  })()}
                   {s.content && (
                     <p className="text-[13px] text-muted-foreground mt-1 line-clamp-2">{s.content}</p>
                   )}
+
                   <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Include in Brief</span>
                     <Switch
