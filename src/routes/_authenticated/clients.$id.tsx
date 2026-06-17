@@ -423,7 +423,7 @@ function ClientDetail() {
             {currentBrief ? (
               <div>
                 <div className={`terr-badge ${currentBrief.status === "sent" ? "bg-primary/25 text-primary-foreground" : currentBrief.status === "approved" ? "bg-success/15 text-success" : currentBrief.status === "review" ? "bg-warning/15 text-warning" : "bg-elevated text-muted-foreground"}`}>
-                  {currentBrief.status}
+                  {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
                 </div>
                 <Link to="/briefs/$id" params={{ id: currentBrief.id }} className="block mt-3">
                   <Button variant="outline" className="w-full">Open Brief</Button>
