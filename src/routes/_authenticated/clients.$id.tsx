@@ -18,7 +18,7 @@ import {
 } from "recharts";
 import { generateBrief } from "@/lib/anthropic.functions";
 import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
-import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors, pullRERASignals, pullBuyerBehaviourSignals } from "@/lib/signals.functions";
+import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors, pullRERASignals, pullBuyerBehaviourSignals, pullMetaAds } from "@/lib/signals.functions";
 import { currentWeekMonday, getErrorMessage, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
   Client, Signal, Brief, SignalType,
@@ -106,6 +106,7 @@ function ClientDetail() {
   const pullYT = useServerFn(pullYouTubeCompetitors);
   const pullRERA = useServerFn(pullRERASignals);
   const pullBuyer = useServerFn(pullBuyerBehaviourSignals);
+  const pullMeta = useServerFn(pullMetaAds);
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
@@ -246,6 +247,11 @@ function ClientDetail() {
         tasks.push({
           label: "YouTube",
           promise: pullYT({ data: { clientId: client.id, competitors: comps, marketGeography: client.market_geography ?? "", weekDate: week, minViews: 200 } })
+            .then((r) => ({ inserted: r.inserted })),
+        });
+        tasks.push({
+          label: "Meta Ads",
+          promise: pullMeta({ data: { clientId: client.id, competitors: comps, market: client.market_geography ?? "", weekDate: week } })
             .then((r) => ({ inserted: r.inserted })),
         });
       }

@@ -10,7 +10,7 @@ interface BriefHeroProps {
 
 export function BriefHero({ content, signals, clientName, weekDate, status }: BriefHeroProps) {
   const searchSignals = signals.filter((s) => s.signal_type === "search_query").slice(0, 6);
-  const competitorSignals = signals.filter((s) => s.signal_type === "competitor").slice(0, 3);
+  const competitorSignals = signals.filter((s) => s.signal_type === "competitor").slice(0, 6);
   const reraSignals = signals.filter((s) => s.signal_type === "rera").slice(0, 2);
   const buyerSignals = signals.filter((s) => s.signal_type === "buyer_behaviour");
   const aqiSignal = signals.find((s) => s.source === "aqi");
@@ -202,6 +202,9 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
               {competitorSignals.map((s, i) => {
                 const d = s.data as Record<string, unknown>;
                 const views = d.views as number | undefined;
+                const isMeta = d.platform === "meta";
+                const daysRunning = Number(d.days_running ?? 0);
+                const snapshotUrl = d.snapshot_url as string | undefined;
                 const urgencyDot = s.urgency === "high" ? "bg-danger" : s.urgency === "medium" ? "bg-warning" : "bg-muted-foreground/40";
                 return (
                   <div key={i} className="border-b border-border pb-2 last:border-none last:pb-0">
@@ -209,7 +212,31 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
                       <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${urgencyDot}`} />
                       <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{s.title}</p>
                     </div>
-                    {views ? (
+                    {isMeta ? (
+                      <div className="flex items-center gap-1.5 mt-1 pl-3 flex-wrap">
+                        <span
+                          className="text-[9px] font-medium tracking-wider uppercase px-1.5 py-0.5 rounded-sm"
+                          style={{ background: "rgba(24,119,242,0.1)", color: "#1877F2" }}
+                        >
+                          Meta ad
+                        </span>
+                        {daysRunning > 0 && (
+                          <span className={`text-[10px] font-mono ${daysRunning > 45 ? "text-warning" : "text-muted-foreground"}`}>
+                            {daysRunning}d{daysRunning > 45 ? " ★ proven" : ""}
+                          </span>
+                        )}
+                        {snapshotUrl && (
+                          <a
+                            href={snapshotUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent text-[10px] hover:underline ml-auto"
+                          >
+                            View ad ↗
+                          </a>
+                        )}
+                      </div>
+                    ) : views ? (
                       <p className="text-[10px] font-mono text-muted-foreground mt-0.5 pl-3">
                         {views.toLocaleString()} views
                         {d.url ? (
