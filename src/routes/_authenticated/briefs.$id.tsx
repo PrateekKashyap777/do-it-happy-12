@@ -135,7 +135,10 @@ function BriefStudio() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally { setSaving(false); }
+  }
   saveDraftRef.current = () => { if (!saving) saveDraft(); };
+
+
 
 
 
