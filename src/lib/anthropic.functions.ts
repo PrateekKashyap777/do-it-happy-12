@@ -84,7 +84,31 @@ Respond ONLY with the JSON object. No code fences. No commentary.`;
     const cleaned = extractJSON(raw);
     let content: BriefContent;
     try {
-      content = JSON.parse(cleaned) as BriefContent;
+      const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+      const requiredKeys = [
+        "search_signals",
+        "competitor_activity",
+        "rera_watch",
+        "buyer_behaviour",
+        "content_recommendations",
+        "campaign_adjustment",
+      ];
+      const hasAllKeys = (obj: Record<string, unknown>) =>
+        requiredKeys.every((k) => k in obj);
+      let candidate: Record<string, unknown> = parsed;
+      if (!hasAllKeys(candidate)) {
+        // Unwrap if Claude nested the brief under a wrapper key
+        for (const v of Object.values(parsed)) {
+          if (v && typeof v === "object" && !Array.isArray(v) && hasAllKeys(v as Record<string, unknown>)) {
+            candidate = v as Record<string, unknown>;
+            break;
+          }
+        }
+      }
+      if (!hasAllKeys(candidate)) {
+        throw new Error("missing required keys");
+      }
+      content = candidate as unknown as BriefContent;
     } catch (e) {
       throw new Error(`Claude returned invalid JSON. Raw response preview: ${raw.slice(0, 200)}`);
     }
