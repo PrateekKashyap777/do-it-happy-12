@@ -18,12 +18,26 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
   const recs = content.content_recommendations ?? [];
 
   const aqiData = aqiSignal?.data as Record<string, unknown> | undefined;
-  const delhiAqi = aqiData?.delhi_aqi as number | undefined;
-  const gurgaonAqi = aqiData?.gurgaon_aqi as number | undefined;
-  const destAqi = aqiData?.destination_aqi as number | undefined;
+  const toAqi = (value: unknown) => {
+    const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const formatCity = (city: string) => city.charAt(0).toUpperCase() + city.slice(1);
+  const sourceCities = Array.isArray(aqiData?.source_cities)
+    ? aqiData.source_cities.filter((city): city is string => typeof city === "string")
+    : ["delhi", "gurgaon"];
+  const sourceReadings = sourceCities
+    .map((city) => ({ city, aqi: toAqi(aqiData?.[`${city}_aqi`]) }))
+    .filter((reading): reading is { city: string; aqi: number } => reading.aqi !== undefined);
+  const maxSourceReading = sourceReadings.reduce<{ city: string; aqi: number } | undefined>(
+    (max, reading) => (!max || reading.aqi > max.aqi ? reading : max),
+    undefined,
+  );
+  const maxSourceAqi = maxSourceReading?.aqi ?? toAqi(aqiData?.max_source_aqi);
+  const maxSourceCity = maxSourceReading?.city ?? "Source";
+  const destAqi = toAqi(aqiData?.destination_aqi);
   const destCity = (aqiData?.destination_city as string | undefined) ?? "Dehradun";
   const aqiTriggered = aqiData?.triggered as boolean | undefined;
-  const maxSourceAqi = delhiAqi ?? gurgaonAqi ?? (aqiData?.max_source_aqi as number | undefined);
 
   type BuyerStat = { label: string; value: string; positive?: boolean };
   const buyerStats: BuyerStat[] = [];
@@ -142,7 +156,7 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
                 <div className="flex-1 rounded-md p-2.5 text-center" style={{ background: "rgba(218,54,51,0.08)" }}>
                   <p className="text-2xl font-mono font-medium text-danger leading-none">{maxSourceAqi ?? "—"}</p>
                   <p className="text-[9px] tracking-wider uppercase text-danger mt-1">
-                    {delhiAqi ? "Delhi" : gurgaonAqi ? "Gurgaon" : "Source"}
+                    {formatCity(maxSourceCity)}
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground">vs</span>
