@@ -44,10 +44,16 @@ const BRIEF_STATUS_LABEL: Record<string, string> = {
 function BriefStudio() {
   const { id } = Route.useParams();
   const regen = useServerFn(regenerateSection);
+  const genBrief = useServerFn(generateBrief);
   const [content, setContent] = useState<BriefContent | null>(null);
   const [notes, setNotes] = useState("");
   const [regenKey, setRegenKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [regenAll, setRegenAll] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
 
   const { data, refetch } = useQuery({
     queryKey: ["brief", id],
