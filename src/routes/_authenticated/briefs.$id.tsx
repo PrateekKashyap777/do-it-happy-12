@@ -13,12 +13,35 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles } from "lucide-react";
+import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles, BarChart3 } from "lucide-react";
 import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
 import { formatForWhatsApp } from "@/lib/terrain-utils";
+import {
+  SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
+  MarketPanel, RecommendationPreviewCard,
+} from "@/components/BriefDataPanels";
 import type {
   Brief, BriefContent, Client, Signal, ContentRecommendation,
 } from "@/lib/terrain-types";
+
+const SIGNAL_TYPE_FOR_SECTION: Record<string, Signal["signal_type"] | undefined> = {
+  search_signals: "search_query",
+  competitor_activity: "competitor",
+  buyer_behaviour: "buyer_behaviour",
+  rera_watch: "rera",
+  campaign_adjustment: "market",
+};
+
+function DataPanelForSection({ sectionKey, signals }: { sectionKey: string; signals: Signal[] }) {
+  switch (sectionKey) {
+    case "search_signals": return <SearchSignalsPanel signals={signals} />;
+    case "competitor_activity": return <CompetitorPanel signals={signals} />;
+    case "buyer_behaviour": return <BuyerBehaviourPanel signals={signals} />;
+    case "rera_watch": return <RERAPanel signals={signals} />;
+    case "campaign_adjustment": return <MarketPanel signals={signals} />;
+    default: return null;
+  }
+}
 
 export const Route = createFileRoute("/_authenticated/briefs/$id")({
   component: BriefStudio,
