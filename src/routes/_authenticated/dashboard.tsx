@@ -141,9 +141,23 @@ function Dashboard() {
         ) : active.length === 0 ? (
           <EmptyState
             title="No clients yet"
-            description="Add your first client to start collecting signals."
-            cta={<Link to="/clients/new"><Button className="bg-primary hover:bg-primary-hover">Add Client</Button></Link>}
+            description="Create a demo client to explore Terrain, or add your own."
+            cta={
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={seeding}
+                  onClick={handleSeed}
+                >
+                  {seeding ? "Creating demo..." : "Try with demo data"}
+                </Button>
+                <Link to="/clients/new">
+                  <Button className="bg-primary hover:bg-primary-hover">Add Client</Button>
+                </Link>
+              </div>
+            }
           />
+
         ) : (
           <table className="w-full text-sm">
             <thead>
