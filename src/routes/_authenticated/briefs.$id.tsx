@@ -116,6 +116,7 @@ function BriefStudio() {
         reviewer_notes: notes,
       }).eq("id", id);
       if (error) throw error;
+      setIsDirty(false);
       toast.success("Saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
@@ -128,7 +129,8 @@ function BriefStudio() {
     if (status === "sent") patch.sent_at = new Date().toISOString();
     const { error } = await supabase.from("briefs").update(patch as never).eq("id", id);
     if (error) { toast.error(error.message); return; }
-    toast.success(`Marked ${status}`);
+    setIsDirty(false);
+    toast.success(`Marked ${BRIEF_STATUS_LABEL[status] ?? status}`);
     refetch();
   }
 
@@ -148,6 +150,44 @@ function BriefStudio() {
       toast.error(err instanceof Error ? err.message : "Regeneration failed");
     } finally { setRegenKey(null); }
   }
+
+  async function handleRegenerateAll() {
+    setConfirmRegen(false);
+    setRegenAll(true);
+    try {
+      const { content: newContent, prompt_used } = await genBrief({
+        data: { client, signals: included, weekDate: brief.week_date },
+      });
+      const { error } = await supabase.from("briefs").update({
+        content: newContent as never,
+        prompt_used,
+        signal_count: included.length,
+        generated_at: new Date().toISOString(),
+        status: "review",
+      }).eq("id", id);
+      if (error) throw error;
+      setContent(newContent);
+      setIsDirty(false);
+      toast.success("Brief regenerated");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Regeneration failed");
+    } finally { setRegenAll(false); }
+  }
+
+  // Cmd/Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (!saving) saveDraft();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, notes, saving]);
+
 
   function copyWhatsApp() {
     const text = formatForWhatsApp(
