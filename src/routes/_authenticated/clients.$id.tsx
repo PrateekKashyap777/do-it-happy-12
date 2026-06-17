@@ -176,7 +176,7 @@ function ClientDetail() {
       toast.success("Brief generated");
       navigate({ to: "/briefs/$id", params: { id: brief!.id } });
     } catch (err) {
-      toast.error(err instanceof Error ? `Brief generation failed — ${err.message}` : "Brief generation failed");
+      toast.error(`Brief generation failed — ${getErrorMessage(err)}`);
     } finally {
       setGenerating(false);
     }
@@ -207,7 +207,7 @@ function ClientDetail() {
       }
       refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Pull failed");
+      toast.error(getErrorMessage(err, "Pull failed"));
     } finally {
       setPulling(false);
     }
