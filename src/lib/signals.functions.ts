@@ -166,18 +166,20 @@ export const checkAQISignal = createServerFn({ method: "POST" })
     const sourceAqis = sourceCities.map((c) => aqiMap[c]).filter((v): v is number => v !== null);
     const destAqi = aqiMap[destinationCity] ?? null;
     const maxSourceAqi = sourceAqis.length > 0 ? Math.max(...sourceAqis) : null;
+    const maxSourceCity = maxSourceAqi !== null
+      ? (sourceCities.find((c) => aqiMap[c] === maxSourceAqi) ?? sourceCities[0])
+      : sourceCities[0];
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
     const triggered = maxSourceAqi !== null && maxSourceAqi >= threshold;
 
     const urgency: "high" | "medium" | "low" =
       triggered ? "high" : maxSourceAqi !== null && maxSourceAqi >= 150 ? "medium" : "low";
 
-    const aqiParts = results.map(
-      (r) => `${r.city.charAt(0).toUpperCase() + r.city.slice(1)}: ${r.aqi ?? "—"}`,
-    );
+    const aqiParts = results.map((r) => `${cap(r.city)}: ${r.aqi ?? "—"}`);
 
     const titleLine = triggered
-      ? `AQI Spike — Campaign Trigger Active (${sourceCities[0]}: ${maxSourceAqi})`
-      : `AQI Update — ${sourceCities[0]}: ${maxSourceAqi ?? "—"}, ${destinationCity}: ${destAqi ?? "—"}`;
+      ? `AQI Spike — Campaign Trigger Active (${cap(maxSourceCity)}: ${maxSourceAqi})`
+      : `AQI Update — ${cap(maxSourceCity)}: ${maxSourceAqi ?? "—"}, ${cap(destinationCity)}: ${destAqi ?? "—"}`;
 
     const actionLine = triggered
       ? ` · Threshold exceeded — AQI burst campaign recommended.`
