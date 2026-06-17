@@ -21,6 +21,7 @@ import {
   SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
   MarketPanel, RecommendationPreviewCard,
 } from "@/components/BriefDataPanels";
+import { BriefHero } from "@/components/BriefHero";
 import type {
   Brief, BriefContent, Client, Signal, ContentRecommendation,
 } from "@/lib/terrain-types";
