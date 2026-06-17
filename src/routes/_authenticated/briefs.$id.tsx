@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
@@ -8,9 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Copy, ChevronDown, RefreshCw, Check, Send } from "lucide-react";
-import { regenerateSection } from "@/lib/anthropic.functions";
+import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles } from "lucide-react";
+import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
 import { formatForWhatsApp } from "@/lib/terrain-utils";
 import type {
   Brief, BriefContent, Client, Signal, ContentRecommendation,
@@ -29,13 +33,27 @@ const SECTIONS: { key: keyof BriefContent; label: string; icon: string }[] = [
   { key: "campaign_adjustment", label: "Campaign Adjustment", icon: "⚡" },
 ];
 
+const BRIEF_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  sent: "Sent",
+};
+
+
 function BriefStudio() {
   const { id } = Route.useParams();
   const regen = useServerFn(regenerateSection);
+  const genBrief = useServerFn(generateBrief);
   const [content, setContent] = useState<BriefContent | null>(null);
   const [notes, setNotes] = useState("");
   const [regenKey, setRegenKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [regenAll, setRegenAll] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
 
   const { data, refetch } = useQuery({
     queryKey: ["brief", id],
@@ -61,19 +79,47 @@ function BriefStudio() {
     if (data?.brief) {
       setContent(data.brief.content);
       setNotes(data.brief.reviewer_notes ?? "");
+      setIsDirty(false);
     }
   }, [data?.brief]);
+
+  // Warn on tab close / refresh with unsaved changes
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  // Cmd/Ctrl+S to save (uses ref so it always calls the latest saveDraft)
+  const saveDraftRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        saveDraftRef.current();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   if (!data || !content) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading brief...</div></AppShell>;
   }
+
 
   const { brief, client, signals } = data;
   const included = signals.filter((s) => s.is_included);
 
   function patchSection<K extends keyof BriefContent>(key: K, value: BriefContent[K]) {
     setContent((c) => (c ? { ...c, [key]: value } : c));
+    setIsDirty(true);
   }
+
 
   async function saveDraft() {
     if (!content) return;
@@ -84,11 +130,17 @@ function BriefStudio() {
         reviewer_notes: notes,
       }).eq("id", id);
       if (error) throw error;
+      setIsDirty(false);
       toast.success("Saved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally { setSaving(false); }
   }
+  saveDraftRef.current = () => { if (!saving) saveDraft(); };
+
+
+
+
 
   async function updateStatus(status: Brief["status"]) {
     const patch: Record<string, unknown> = { status, reviewer_notes: notes, content };
@@ -96,7 +148,8 @@ function BriefStudio() {
     if (status === "sent") patch.sent_at = new Date().toISOString();
     const { error } = await supabase.from("briefs").update(patch as never).eq("id", id);
     if (error) { toast.error(error.message); return; }
-    toast.success(`Marked ${status}`);
+    setIsDirty(false);
+    toast.success(`Marked ${BRIEF_STATUS_LABEL[status] ?? status}`);
     refetch();
   }
 
@@ -116,6 +169,34 @@ function BriefStudio() {
       toast.error(err instanceof Error ? err.message : "Regeneration failed");
     } finally { setRegenKey(null); }
   }
+
+  async function handleRegenerateAll() {
+    setConfirmRegen(false);
+    setRegenAll(true);
+    try {
+      const { content: newContent, prompt_used } = await genBrief({
+        data: { client, signals: included, weekDate: brief.week_date },
+      });
+      const { error } = await supabase.from("briefs").update({
+        content: newContent as never,
+        prompt_used,
+        signal_count: included.length,
+        generated_at: new Date().toISOString(),
+        status: "review",
+      }).eq("id", id);
+      if (error) throw error;
+      setContent(newContent);
+      setIsDirty(false);
+      toast.success("Brief regenerated");
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Regeneration failed");
+    } finally { setRegenAll(false); }
+  }
+
+
+
+
 
   function copyWhatsApp() {
     const text = formatForWhatsApp(
@@ -144,7 +225,7 @@ function BriefStudio() {
           <p className="text-sm text-muted-foreground mt-1 font-mono">Week of {brief.week_date}</p>
         </div>
         <span className={`terr-badge ${brief.status === "sent" ? "bg-primary/25 text-primary-foreground" : brief.status === "approved" ? "bg-success/15 text-success" : brief.status === "review" ? "bg-warning/15 text-warning" : "bg-elevated text-muted-foreground"}`}>
-          {brief.status}
+          {BRIEF_STATUS_LABEL[brief.status] ?? brief.status}{isDirty ? " · unsaved" : ""}
         </span>
       </div>
 
@@ -203,20 +284,23 @@ function BriefStudio() {
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-3 space-y-1.5 max-h-60 overflow-y-auto">
                 {included.map((s) => (
-                  <div key={s.id} className="text-xs py-1 border-b border-border last:border-0">
-                    <span className="text-muted-foreground mr-2">[{s.signal_type}]</span>{s.title}
+                  <div key={s.id} className="text-xs py-1 border-b border-border last:border-0 flex items-start gap-2">
+                    <span className="terr-badge bg-elevated text-muted-foreground text-[10px] shrink-0">{s.signal_type}</span>
+                    <span className="leading-tight">{s.title}</span>
                   </div>
                 ))}
               </CollapsibleContent>
+
             </div>
           </Collapsible>
 
           <div className="terr-card p-5 space-y-3">
             <div className="terr-label">Reviewer Notes</div>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-xs" />
+            <Textarea value={notes} onChange={(e) => { setNotes(e.target.value); setIsDirty(true); }} rows={3} className="text-xs" />
             <Button variant="outline" className="w-full" onClick={saveDraft} disabled={saving}>
               {saving ? "Saving..." : "Save Draft"}
             </Button>
+            <p className="text-[10px] text-muted-foreground text-center">⌘S to save</p>
           </div>
 
           <div className="terr-card p-5 space-y-2">
@@ -233,12 +317,22 @@ function BriefStudio() {
             </Button>
             <Button
               className="w-full bg-primary hover:bg-primary-hover"
-              onClick={() => updateStatus("sent")}
+              onClick={() => setConfirmSend(true)}
               disabled={brief.status === "sent"}
             >
               <Send className="h-3.5 w-3.5 mr-2" /> Mark Sent
             </Button>
+            <Button
+              variant="outline"
+              className="w-full mt-2"
+              onClick={() => setConfirmRegen(true)}
+              disabled={regenAll || included.length < 2}
+            >
+              <Sparkles className={`h-3.5 w-3.5 mr-2 ${regenAll ? "animate-spin" : ""}`} />
+              {regenAll ? "Regenerating..." : "Regenerate All"}
+            </Button>
           </div>
+
 
           <div className="terr-card p-5 space-y-2">
             <div className="terr-label">Delivery</div>
@@ -252,9 +346,42 @@ function BriefStudio() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={confirmSend} onOpenChange={setConfirmSend}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark brief as sent?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the brief as delivered to {client.name} for week of {brief.week_date}. Are you sure?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmSend(false); updateStatus("sent"); }}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRegen} onOpenChange={setConfirmRegen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate the entire brief?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace all sections using the currently included signals. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRegenerateAll}>Regenerate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }
+
 
 function RecommendationsEditor({
   value, onChange,

@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { MapPin, RefreshCw, Sparkles } from "lucide-react";
+import { MapPin, RefreshCw, Sparkles, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
 } from "recharts";
@@ -33,7 +34,7 @@ const TYPE_TABS: { key: "all" | SignalType; label: string }[] = [
   { key: "competitor", label: "Competitor" },
   { key: "news", label: "News" },
   { key: "rera", label: "RERA" },
-  { key: "buyer_behaviour", label: "Buyer" },
+  { key: "buyer_behaviour", label: "Buyer Behaviour" },
   { key: "market", label: "Market" },
 ];
 
@@ -51,6 +52,48 @@ const URGENCY_CLASS: Record<string, string> = {
   medium: "terr-signal-medium",
   low: "terr-signal-low",
 };
+
+const BRIEF_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  sent: "Sent",
+};
+
+function stepWeek(week: string, delta: number): string {
+  const d = new Date(week + "T00:00:00");
+  d.setDate(d.getDate() + delta * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatNum(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (Number.isNaN(n)) return null;
+  return n.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+}
+
+function signalMetrics(data: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const vol = formatNum(data.volume);
+  if (vol) out.push(`Vol: ${vol}`);
+  const wow = data.week_change_pct ?? data.movement_pct;
+  const wowN = formatNum(wow);
+  if (wowN !== null) {
+    const num = typeof wow === "number" ? wow : Number(wow);
+    out.push(`WoW: ${num > 0 ? "+" : ""}${wowN}%`);
+  }
+  const pos = formatNum(data.position);
+  if (pos) out.push(`Pos: ${pos}`);
+  const ctr = formatNum(data.ctr);
+  if (ctr) out.push(`CTR: ${ctr}%`);
+  const imp = formatNum(data.impressions);
+  if (imp) out.push(`Impr: ${imp}`);
+  const clicks = formatNum(data.clicks);
+  if (clicks) out.push(`Clicks: ${clicks}`);
+  return out;
+}
+
 
 function ClientDetail() {
   const { id } = Route.useParams();
@@ -204,15 +247,35 @@ function ClientDetail() {
         <div className="space-y-4">
           <div className="terr-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="terr-label">Week of</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setWeek(stepWeek(week, -1))}
+                  aria-label="Previous week"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
                 <Input
                   type="date"
                   value={week}
                   onChange={(e) => setWeek(e.target.value)}
                   className="w-44 font-mono"
                 />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setWeek(stepWeek(week, 1))}
+                  disabled={week >= currentWeekMonday()}
+                  aria-label="Next week"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
+
               <Button variant="outline" size="sm" onClick={() => setModal(true)}>+ Add Signal</Button>
             </div>
             <div className="mt-4">
@@ -253,9 +316,18 @@ function ClientDetail() {
                     </span>
                   </div>
                   <div className="text-sm font-medium">{s.title}</div>
+                  {(() => {
+                    const metrics = signalMetrics((s.data ?? {}) as Record<string, unknown>);
+                    return metrics.length > 0 ? (
+                      <div className="mt-1.5 text-[11px] text-muted-foreground font-mono">
+                        {metrics.join(" · ")}
+                      </div>
+                    ) : null;
+                  })()}
                   {s.content && (
                     <p className="text-[13px] text-muted-foreground mt-1 line-clamp-2">{s.content}</p>
                   )}
+
                   <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">Include in Brief</span>
                     <Switch
@@ -275,6 +347,11 @@ function ClientDetail() {
             <div className="terr-label mb-3">Week Summary</div>
             <div className="terr-stat">{signals.length}</div>
             <div className="text-xs text-muted-foreground mt-1">signals total · {includedCount} included</div>
+            <div className={`mt-2 text-xs ${includedCount >= 2 ? "text-success" : "text-warning"}`}>
+              {includedCount >= 2
+                ? `${includedCount} of ${signals.length} signals included — ready to generate`
+                : `Add ${2 - includedCount} more included signal${2 - includedCount === 1 ? "" : "s"} to generate`}
+            </div>
             {chartData.length > 0 && (
               <div className="mt-4 h-32">
                 <ResponsiveContainer width="100%" height="100%">
@@ -289,6 +366,23 @@ function ClientDetail() {
               </div>
             )}
           </div>
+
+          {client.keywords?.length > 0 && (
+            <Collapsible>
+              <div className="terr-card p-5">
+                <CollapsibleTrigger className="w-full flex items-center justify-between">
+                  <div className="terr-label">Tracking {client.keywords.length} keyword{client.keywords.length === 1 ? "" : "s"}</div>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3 flex flex-wrap gap-1.5">
+                  {client.keywords.map((k) => (
+                    <span key={k} className="terr-badge bg-elevated text-muted-foreground text-[11px]">{k}</span>
+                  ))}
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          )}
+
 
           <div className="terr-card p-5">
             <div className="terr-label mb-3">Live Data</div>
@@ -329,7 +423,7 @@ function ClientDetail() {
             {currentBrief ? (
               <div>
                 <div className={`terr-badge ${currentBrief.status === "sent" ? "bg-primary/25 text-primary-foreground" : currentBrief.status === "approved" ? "bg-success/15 text-success" : currentBrief.status === "review" ? "bg-warning/15 text-warning" : "bg-elevated text-muted-foreground"}`}>
-                  {currentBrief.status}
+                  {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
                 </div>
                 <Link to="/briefs/$id" params={{ id: currentBrief.id }} className="block mt-3">
                   <Button variant="outline" className="w-full">Open Brief</Button>
@@ -354,20 +448,31 @@ function ClientDetail() {
             <div className="terr-card p-5">
               <div className="terr-label mb-3">Brief History</div>
               <div className="space-y-1">
-                {briefs.slice(0, 8).map((b) => (
-                  <Link
-                    key={b.id}
-                    to="/briefs/$id"
-                    params={{ id: b.id }}
-                    className="flex items-center justify-between py-1.5 text-xs hover:bg-elevated rounded-sm px-2"
-                  >
-                    <span className="font-mono text-muted-foreground">{b.week_date}</span>
-                    <span className={`terr-badge ${b.status === "sent" ? "bg-primary/25 text-primary-foreground" : "bg-elevated text-muted-foreground"}`}>{b.status}</span>
-                  </Link>
-                ))}
+                {briefs.slice(0, 8).map((b) => {
+                  const preview = (b.content as { search_signals?: string } | null)?.search_signals?.slice(0, 60) ?? "";
+                  return (
+                    <Link
+                      key={b.id}
+                      to="/briefs/$id"
+                      params={{ id: b.id }}
+                      className="block py-1.5 px-2 hover:bg-elevated rounded-sm"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground">{b.week_date}</span>
+                        <span className={`terr-badge ${b.status === "sent" ? "bg-primary/25 text-primary-foreground" : "bg-elevated text-muted-foreground"}`}>{BRIEF_STATUS_LABEL[b.status] ?? b.status}</span>
+                      </div>
+                      {preview && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1">
+                          {preview}{preview.length === 60 ? "…" : ""}
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}
+
         </div>
       </div>
 

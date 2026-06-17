@@ -8,6 +8,7 @@ import { currentWeekMonday } from "@/lib/terrain-utils";
 import type { Client, Brief, Signal } from "@/lib/terrain-types";
 import { toast } from "sonner";
 import { generateBrief } from "@/lib/anthropic.functions";
+import { seedDemoClient } from "@/lib/seed.functions";
 import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -18,7 +19,9 @@ function Dashboard() {
   const week = currentWeekMonday();
   const navigate = useNavigate();
   const genBrief = useServerFn(generateBrief);
+  const seedDemo = useServerFn(seedDemoClient);
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["dashboard", week],
@@ -98,14 +101,28 @@ function Dashboard() {
     }
   }
 
+  async function handleSeed() {
+    setSeeding(true);
+    try {
+      const res = await seedDemo();
+      toast.success("Demo client created — exploring Pincode Bharat");
+      navigate({ to: "/clients/$id", params: { id: res.clientId } });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create demo");
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   return (
     <AppShell>
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold">Command Center</h1>
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
         <p className="text-sm text-muted-foreground font-mono mt-1">
           Week of {week}
         </p>
       </div>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
         <MetricCard label="Active Clients" value={active.length} loading={isLoading} />
@@ -124,9 +141,23 @@ function Dashboard() {
         ) : active.length === 0 ? (
           <EmptyState
             title="No clients yet"
-            description="Add your first client to start collecting signals."
-            cta={<Link to="/clients/new"><Button className="bg-primary hover:bg-primary-hover">Add Client</Button></Link>}
+            description="Create a demo client to explore Terrain, or add your own."
+            cta={
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  disabled={seeding}
+                  onClick={handleSeed}
+                >
+                  {seeding ? "Creating demo..." : "Try with demo data"}
+                </Button>
+                <Link to="/clients/new">
+                  <Button className="bg-primary hover:bg-primary-hover">Add Client</Button>
+                </Link>
+              </div>
+            }
           />
+
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -202,11 +233,18 @@ function SignalCountBadge({ count }: { count: number }) {
   const cls =
     count >= 5
       ? "bg-success/15 text-success"
-      : count >= 2
+      : count >= 3
         ? "bg-warning/15 text-warning"
         : "bg-danger/15 text-danger";
   return <span className={`terr-badge font-mono ${cls}`}>{count}</span>;
 }
+
+const BRIEF_STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  review: "In Review",
+  approved: "Approved",
+  sent: "Sent",
+};
 
 function BriefStatusBadge({ brief }: { brief?: Brief }) {
   if (!brief) return <span className="terr-badge border border-danger text-danger">Not Started</span>;
@@ -216,8 +254,9 @@ function BriefStatusBadge({ brief }: { brief?: Brief }) {
     approved: "bg-success/15 text-success",
     sent: "bg-primary/25 text-primary-foreground",
   };
-  return <span className={`terr-badge ${map[brief.status] ?? "bg-elevated"}`}>{brief.status}</span>;
+  return <span className={`terr-badge ${map[brief.status] ?? "bg-elevated"}`}>{BRIEF_STATUS_LABEL[brief.status] ?? brief.status}</span>;
 }
+
 
 function EmptyState({ title, description, cta }: { title: string; description: string; cta?: React.ReactNode }) {
   return (

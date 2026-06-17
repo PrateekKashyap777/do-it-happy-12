@@ -12,7 +12,11 @@ export type SignalSource =
   | "rss"
   | "rera_portal"
   | "manual"
-  | "n8n";
+  | "n8n"
+  | "dataforseo"
+  | "youtube"
+  | "aqi";
+
 
 export type Urgency = "high" | "medium" | "low";
 
@@ -107,4 +111,8 @@ export const SIGNAL_SOURCE_LABELS: Record<SignalSource, string> = {
   rera_portal: "RERA Portal",
   manual: "Manual",
   n8n: "n8n",
+  dataforseo: "DataForSEO",
+  youtube: "YouTube",
+  aqi: "AQI",
 };
+

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { formatSignalsForPrompt } from "@/lib/terrain-utils";
-import type { Signal, Client, BriefContent, ContentRecommendation } from "@/lib/terrain-types";
+import type { Signal, Client, BriefContent, ContentRecommendation, BuyerPersona } from "@/lib/terrain-types";
 
 const MODEL = "claude-sonnet-4-6";
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -260,6 +260,25 @@ function extractJSON(raw: string): string {
   return s.slice(start, end + 1);
 }
 
+function buildFallbackPrompt(client: Client): string {
+  const kw = client.keywords?.length ? client.keywords.join(", ") : "none specified";
+  const comp = client.competitors?.length ? client.competitors.join(", ") : "none specified";
+  const personas = client.buyer_personas?.length
+    ? client.buyer_personas.map((p: BuyerPersona) => `${p.name} (${p.location})`).join(", ")
+    : "not defined";
+  return (
+    `You are a market intelligence analyst for ${client.name}, ` +
+    `a real estate operator in ${client.market_geography}. ` +
+    `Tracked keywords: ${kw}. Competitors: ${comp}. ` +
+    `Key buyer personas: ${personas}. ` +
+    `Produce a weekly intelligence brief — concise, specific, and actionable. ` +
+    `Tie each section to the actual signal data provided and reference keywords, ` +
+    `competitors, and personas by name where relevant.`
+  );
+}
+
+
+
 
 /** Generate a full weekly brief using Claude. */
 export const generateBrief = createServerFn({ method: "POST" })
@@ -277,10 +296,9 @@ export const generateBrief = createServerFn({ method: "POST" })
     const signals = data.signals as Signal[];
     const signalBlock = formatSignalsForPrompt(signals);
 
-    const baseSystem =
-      client.system_prompt ||
-      `You are a market intelligence analyst for ${client.name}, a real estate operator in ${client.market_geography}. Produce a weekly intelligence brief — concise, specific, and actionable.`;
+    const baseSystem = client.system_prompt || buildFallbackPrompt(client);
     const system = `${baseSystem}\n\nSTRICT OUTPUT CONTRACT: Use the provided tool exactly once. The tool input must contain only these six top-level fields: search_signals, competitor_activity, rera_watch, buyer_behaviour, content_recommendations, campaign_adjustment. Do not include week, brand, market, primary_keyword, prepared_by, executive_summary, brief_metadata, intelligence_brief, markdown, or commentary. Keep every narrative field to 2-4 concise sentences.`;
+
 
     const user = `Here is this week's intelligence data for ${client.name}. Generate the weekly brief.
 
