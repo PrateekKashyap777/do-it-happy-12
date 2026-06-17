@@ -37,116 +37,94 @@ function stripCdata(s: string): string {
   return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim();
 }
 
-// ─── 1. NEWS via Indian real estate RSS feeds ────────────────────────────────
-const REAL_ESTATE_FEEDS = [
-  { name: "ET Real Estate", url: "https://economictimes.indiatimes.com/industry/services/property-/-citi-/-land/rssfeeds/20308536.cms" },
-  { name: "MagicBricks", url: "https://www.magicbricks.com/blog/feed" },
-  { name: "Housing.com", url: "https://housing.com/news/feed" },
-  { name: "99acres", url: "https://www.99acres.com/articles/feed" },
-];
-
-const NewsInput = z.object({
-  clientId: z.string(),
-  keywords: z.array(z.string()).default([]),
-  competitors: z.array(z.string()).default([]),
-  weekDate: z.string(),
-  limit: z.number().int().min(1).max(15).default(10),
-});
-
+// ─── 1. NEWS via Anthropic web_search ────────────────────────────────────────
 export const pullNewsSignals = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => NewsInput.parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({
+      clientId: z.string(),
+      keywords: z.array(z.string()).default([]),
+      competitors: z.array(z.string()).default([]),
+      market: z.string().default(""),
+      weekDate: z.string(),
+      limit: z.number().int().min(1).max(10).default(6),
+    }).parse(input)
+  )
   .handler(async ({ data }) => {
-    const { clientId, keywords, competitors, weekDate, limit } = data;
-    const since = Date.now() - 1000 * 60 * 60 * 24 * 7;
-    const STOP = new Set(["from","with","that","this","have","will","your","what","more","into","than","they","them","some","been","here","when","were","also","flat","plot","bhk","for","the","and","are","not","but"]);
+    const { clientId, keywords, competitors, market, weekDate, limit } = data;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
 
-    const shortTerms = [
-      ...keywords.flatMap((kw) =>
-        kw.toLowerCase().split(/[\s,/]+/).filter((w) => w.length >= 4 && !STOP.has(w))
-      ),
-      ...competitors.map((c) => c.toLowerCase()),
-    ].filter((t, i, arr) => t.length > 0 && arr.indexOf(t) === i);
+    const topKw = keywords.slice(0, 5).join(", ") || market || "real estate India";
+    const topComp = competitors.slice(0, 3).join(", ");
 
-    const feedResults = await Promise.allSettled(
-      REAL_ESTATE_FEEDS.map(async (feed) => {
-        const res = await fetch(feed.url, {
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; Terrain/1.0)" },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!res.ok) return { items: [] as SignalRow[] };
-        const xml = await res.text();
-        const items = extractTags(xml, "item");
-        const rows: SignalRow[] = [];
+    const searchQuery =
+      `Latest Indian real estate news 2026 about: ${topKw}` +
+      (topComp ? `. Also check news about: ${topComp}` : "") +
+      `. Focus on: property prices, RERA updates, new launches, market trends, hill station demand, expressway projects.`;
 
-        for (const item of items) {
-          const title = stripCdata(extractTags(item, "title")[0] ?? "");
-          const link = stripCdata(extractTags(item, "link")[0] ?? "");
-          const pub = stripCdata(extractTags(item, "pubDate")[0] ?? "");
-          const desc = stripCdata(extractTags(item, "description")[0] ?? "");
-
-          if (!title) continue;
-          const ts = pub ? new Date(pub).getTime() : NaN;
-          if (Number.isFinite(ts) && ts < since) continue;
-
-          if (shortTerms.length > 0) {
-            const combined = (title + " " + desc).toLowerCase();
-            if (!shortTerms.some((t) => combined.includes(t))) continue;
-          }
-
-          rows.push({
-            client_id: clientId,
-            signal_type: "news",
-            source: "rss",
-            title: title.slice(0, 200),
-            content: desc.slice(0, 300) || `${feed.name} — ${pub}`,
-            data: { url: link, feed_source: feed.name, published_at: pub },
-            urgency: "medium",
-            week_date: weekDate,
-            is_included: true,
-          });
-        }
-        return { items: rows };
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        system:
+          "You are a real estate news researcher. Search for recent Indian real estate news relevant to the provided keywords and market. " +
+          "After searching, return ONLY a JSON array of news items. No preamble, no markdown. " +
+          "Each item must have exactly these keys: title, summary, source, url, published_date. " +
+          "Return 4-6 items maximum. Focus on news from the last 7 days if available, otherwise recent months.",
+        messages: [{ role: "user", content: searchQuery }],
       }),
-    );
+    });
 
-    const allRows: SignalRow[] = [];
-    const seenTitles = new Set<string>();
-    for (const result of feedResults) {
-      if (result.status === "fulfilled") {
-        for (const row of result.value.items) {
-          if (!seenTitles.has(row.title)) {
-            seenTitles.add(row.title);
-            allRows.push(row);
-          }
-        }
+    if (!response.ok) throw new Error(`Claude API error ${response.status}`);
+    const result = (await response.json()) as { content: Array<{ type: string; text?: string }> };
+
+    const textBlock = result.content.find((b) => b.type === "text" && b.text);
+    if (!textBlock?.text) return { inserted: 0 };
+
+    let newsItems: Array<{ title: string; summary: string; source: string; url: string; published_date: string }> = [];
+    try {
+      const cleaned = textBlock.text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      const firstBracket = cleaned.indexOf("[");
+      const lastBracket = cleaned.lastIndexOf("]");
+      if (firstBracket !== -1 && lastBracket !== -1) {
+        newsItems = JSON.parse(cleaned.slice(firstBracket, lastBracket + 1));
       }
+    } catch {
+      return { inserted: 0 };
     }
 
-    if (allRows.length === 0) {
-      const fallback = await Promise.allSettled(
-        REAL_ESTATE_FEEDS.slice(0, 2).map(async (feed) => {
-          try {
-            const r = await fetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
-            if (!r.ok) return [];
-            const xml = await r.text();
-            return extractTags(xml, "item").slice(0, 3).flatMap((item) => {
-              const t2 = stripCdata(extractTags(item, "title")[0] ?? "");
-              const l2 = stripCdata(extractTags(item, "link")[0] ?? "");
-              const p2 = stripCdata(extractTags(item, "pubDate")[0] ?? "");
-              const d2 = stripCdata(extractTags(item, "description")[0] ?? "");
-              if (!t2) return [];
-              return [{ client_id: clientId, signal_type: "news" as const, source: "rss" as const, title: t2.slice(0, 200), content: d2.slice(0, 300) || feed.name, data: { url: l2, feed_source: feed.name, published_at: p2 }, urgency: "low" as const, week_date: weekDate, is_included: true }];
-            });
-          } catch { return []; }
-        })
-      );
-      for (const r of fallback) {
-        if (r.status === "fulfilled") allRows.push(...(r.value as SignalRow[]));
-      }
-    }
-    const inserted = await insertSignals(allRows.slice(0, limit));
-    return { inserted };
+    const rows: SignalRow[] = newsItems.slice(0, limit).map((item) => ({
+      client_id: clientId,
+      signal_type: "news" as const,
+      source: "rss" as const,
+      title: (item.title ?? "").slice(0, 200),
+      content: (item.summary ?? "").slice(0, 300),
+      data: {
+        url: item.url ?? "",
+        feed_source: item.source ?? "Web Search",
+        published_at: item.published_date ?? new Date().toISOString(),
+      },
+      urgency: "medium" as const,
+      week_date: weekDate,
+      is_included: true,
+    }));
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("signals").upsert(rows as never, {
+      onConflict: "client_id,title,week_date,source",
+      ignoreDuplicates: false,
+    });
+    if (error) throw new Error(error.message);
+    return { inserted: rows.length };
   });
+
 
 // ─── 2. AQI via WAQI API (source vs destination logic) ───────────────────────
 const AQIInput = z.object({
