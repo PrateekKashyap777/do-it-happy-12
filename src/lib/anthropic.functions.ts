@@ -260,6 +260,25 @@ function extractJSON(raw: string): string {
   return s.slice(start, end + 1);
 }
 
+function buildFallbackPrompt(client: Client): string {
+  const kw = client.keywords?.length ? client.keywords.join(", ") : "none specified";
+  const comp = client.competitors?.length ? client.competitors.join(", ") : "none specified";
+  const personas = client.buyer_personas?.length
+    ? client.buyer_personas.map((p: BuyerPersona) => `${p.name} (${p.location})`).join(", ")
+    : "not defined";
+  return (
+    `You are a market intelligence analyst for ${client.name}, ` +
+    `a real estate operator in ${client.market_geography}. ` +
+    `Tracked keywords: ${kw}. Competitors: ${comp}. ` +
+    `Key buyer personas: ${personas}. ` +
+    `Produce a weekly intelligence brief — concise, specific, and actionable. ` +
+    `Tie each section to the actual signal data provided and reference keywords, ` +
+    `competitors, and personas by name where relevant.`
+  );
+}
+
+
+
 
 /** Generate a full weekly brief using Claude. */
 export const generateBrief = createServerFn({ method: "POST" })
