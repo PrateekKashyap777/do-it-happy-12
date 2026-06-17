@@ -74,7 +74,9 @@ export const pullNewsSignals = createServerFn({ method: "POST" })
     if (!response.ok) throw new Error(`Claude API error ${response.status}`);
     const result = (await response.json()) as { content: Array<{ type: string; text?: string }> };
 
-    const textBlock = result.content.find((b) => b.type === "text" && b.text);
+    const textBlocks = result.content.filter((b) => b.type === "text" && b.text);
+    const textBlock = textBlocks[textBlocks.length - 1];
+
     if (!textBlock?.text) return { inserted: 0 };
 
     let newsItems: Array<{ title: string; summary: string; source: string; url: string; published_date: string }> = [];
