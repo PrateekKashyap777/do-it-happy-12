@@ -52,6 +52,8 @@ function Dashboard() {
   const clients = data?.clients ?? [];
   const signals = data?.signals ?? [];
   const briefs = data?.briefs ?? [];
+  const recentSent = data?.recentSent ?? [];
+  const clientNameById = new Map(clients.map((c) => [c.id, c.name]));
 
   const active = clients.filter((c) => c.status === "active");
   const briefByClient = new Map<string, Brief>();
