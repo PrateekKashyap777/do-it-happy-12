@@ -448,20 +448,31 @@ function ClientDetail() {
             <div className="terr-card p-5">
               <div className="terr-label mb-3">Brief History</div>
               <div className="space-y-1">
-                {briefs.slice(0, 8).map((b) => (
-                  <Link
-                    key={b.id}
-                    to="/briefs/$id"
-                    params={{ id: b.id }}
-                    className="flex items-center justify-between py-1.5 text-xs hover:bg-elevated rounded-sm px-2"
-                  >
-                    <span className="font-mono text-muted-foreground">{b.week_date}</span>
-                    <span className={`terr-badge ${b.status === "sent" ? "bg-primary/25 text-primary-foreground" : "bg-elevated text-muted-foreground"}`}>{b.status}</span>
-                  </Link>
-                ))}
+                {briefs.slice(0, 8).map((b) => {
+                  const preview = (b.content as { search_signals?: string } | null)?.search_signals?.slice(0, 60) ?? "";
+                  return (
+                    <Link
+                      key={b.id}
+                      to="/briefs/$id"
+                      params={{ id: b.id }}
+                      className="block py-1.5 px-2 hover:bg-elevated rounded-sm"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground">{b.week_date}</span>
+                        <span className={`terr-badge ${b.status === "sent" ? "bg-primary/25 text-primary-foreground" : "bg-elevated text-muted-foreground"}`}>{BRIEF_STATUS_LABEL[b.status] ?? b.status}</span>
+                      </div>
+                      {preview && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground line-clamp-1">
+                          {preview}{preview.length === 60 ? "…" : ""}
+                        </div>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}
+
         </div>
       </div>
 
