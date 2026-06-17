@@ -94,9 +94,23 @@ function BriefStudio() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
+  // Cmd/Ctrl+S to save (uses ref so it always calls the latest saveDraft)
+  const saveDraftRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        saveDraftRef.current();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   if (!data || !content) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading brief...</div></AppShell>;
   }
+
 
   const { brief, client, signals } = data;
   const included = signals.filter((s) => s.is_included);
