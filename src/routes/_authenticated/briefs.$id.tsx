@@ -284,11 +284,13 @@ function BriefStudio() {
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-3 space-y-1.5 max-h-60 overflow-y-auto">
                 {included.map((s) => (
-                  <div key={s.id} className="text-xs py-1 border-b border-border last:border-0">
-                    <span className="text-muted-foreground mr-2">[{s.signal_type}]</span>{s.title}
+                  <div key={s.id} className="text-xs py-1 border-b border-border last:border-0 flex items-start gap-2">
+                    <span className="terr-badge bg-elevated text-muted-foreground text-[10px] shrink-0">{s.signal_type}</span>
+                    <span className="leading-tight">{s.title}</span>
                   </div>
                 ))}
               </CollapsibleContent>
+
             </div>
           </Collapsible>
 
