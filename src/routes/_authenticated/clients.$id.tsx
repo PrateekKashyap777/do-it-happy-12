@@ -249,6 +249,18 @@ function ClientDetail() {
             .then((r) => ({ inserted: r.inserted })),
         });
       }
+      if (client.market_geography) {
+        tasks.push({
+          label: "RERA",
+          promise: pullRERA({ data: { clientId: client.id, market: client.market_geography, keywords: kws, weekDate: week } }),
+        });
+      }
+      // Buyer intent runs last so it can read the freshly-pulled keyword signals
+      const earlyResults = await Promise.allSettled(tasks.map((t) => t.promise));
+      const buyerTask = { label: "Buyer intent", promise: pullBuyer({ data: { clientId: client.id, weekDate: week } }) };
+      const buyerResult = await Promise.allSettled([buyerTask.promise]);
+      const allTasks = [...tasks, buyerTask];
+      const results = [...earlyResults, ...buyerResult];
       const results = await Promise.allSettled(tasks.map((t) => t.promise));
       let total = 0;
       const ok: string[] = [];
