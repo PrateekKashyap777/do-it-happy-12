@@ -34,7 +34,7 @@ const TYPE_TABS: { key: "all" | SignalType; label: string }[] = [
   { key: "competitor", label: "Competitor" },
   { key: "news", label: "News" },
   { key: "rera", label: "RERA" },
-  { key: "buyer_behaviour", label: "Buyer" },
+  { key: "buyer_behaviour", label: "Buyer Behaviour" },
   { key: "market", label: "Market" },
 ];
 
