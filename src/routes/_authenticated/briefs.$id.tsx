@@ -21,6 +21,7 @@ import {
   SearchSignalsPanel, CompetitorPanel, BuyerBehaviourPanel, RERAPanel,
   MarketPanel, RecommendationPreviewCard,
 } from "@/components/BriefDataPanels";
+import { BriefHero } from "@/components/BriefHero";
 import type {
   Brief, BriefContent, Client, Signal, ContentRecommendation,
 } from "@/lib/terrain-types";
@@ -289,7 +290,16 @@ function BriefStudio() {
         </span>
       </div>
 
+      <BriefHero
+        content={content}
+        signals={included}
+        clientName={client.name}
+        weekDate={brief.week_date}
+        status={brief.status}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+
         {/* LEFT: sections */}
         <div className="space-y-4">
           {SECTIONS.map(({ key, label, icon }) => {
