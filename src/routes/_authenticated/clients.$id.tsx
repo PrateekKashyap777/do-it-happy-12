@@ -104,6 +104,8 @@ function ClientDetail() {
   const pullNews = useServerFn(pullNewsSignals);
   const checkAQI = useServerFn(checkAQISignal);
   const pullYT = useServerFn(pullYouTubeCompetitors);
+  const pullRERA = useServerFn(pullRERASignals);
+  const pullBuyer = useServerFn(pullBuyerBehaviourSignals);
   const [week, setWeek] = useState(currentWeekMonday());
   const [tab, setTab] = useState<"all" | SignalType>("all");
   const [modal, setModal] = useState(false);
