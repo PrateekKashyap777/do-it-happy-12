@@ -70,7 +70,7 @@ export const generateBrief = createServerFn({ method: "POST" })
 
     const system =
       client.system_prompt ||
-      `You are a market intelligence analyst for ${client.name}, a real estate operator in ${client.market_geography}. Produce a weekly intelligence brief — concise, specific, and actionable. Respond ONLY with a valid JSON object containing exactly these 6 keys: search_signals (string), competitor_activity (string), rera_watch (string), buyer_behaviour (string), content_recommendations (array of exactly 3 objects with priority, format, platform, hook, topic, persona), campaign_adjustment (string). No preamble, no markdown.`;
+      `You are a market intelligence analyst for ${client.name}, a real estate operator in ${client.market_geography}. Produce a weekly intelligence brief — concise, specific, and actionable. Respond ONLY with a valid JSON object containing exactly these 6 keys: search_signals (string), competitor_activity (string), rera_watch (string), buyer_behaviour (string), content_recommendations (array of exactly 3 objects with priority, format, platform, hook, topic, persona), campaign_adjustment (string). Do NOT wrap the response in brief_metadata, brief, or any other wrapper object. Do NOT add prepared_by, brand, market, or any extra keys. No preamble, no markdown.`;
 
     const user = `Here is this week's intelligence data for ${client.name}. Generate the weekly brief.
 
@@ -78,9 +78,9 @@ WEEK OF: ${data.weekDate}
 
 ${signalBlock}
 
-Respond ONLY with the JSON object. No code fences. No commentary.`;
+Respond ONLY with a flat JSON object containing exactly the 6 required keys at the top level. No wrapper. No metadata. No code fences. No commentary.`;
 
-    const raw = await callClaude({ system, user, maxTokens: 4000 });
+    const raw = await callClaude({ system, user, maxTokens: 8000 });
     const cleaned = extractJSON(raw);
     let content: BriefContent;
     try {
