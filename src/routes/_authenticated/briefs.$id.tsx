@@ -8,9 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Copy, ChevronDown, RefreshCw, Check, Send } from "lucide-react";
-import { regenerateSection } from "@/lib/anthropic.functions";
+import { Copy, ChevronDown, RefreshCw, Check, Send, Sparkles } from "lucide-react";
+import { regenerateSection, generateBrief } from "@/lib/anthropic.functions";
 import { formatForWhatsApp } from "@/lib/terrain-utils";
 import type {
   Brief, BriefContent, Client, Signal, ContentRecommendation,
