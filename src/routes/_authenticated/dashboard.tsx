@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
-import { currentWeekMonday } from "@/lib/terrain-utils";
+import { currentWeekMonday, getErrorMessage } from "@/lib/terrain-utils";
 import type { Client, Brief, Signal } from "@/lib/terrain-types";
 import { toast } from "sonner";
 import { generateBrief } from "@/lib/anthropic.functions";
