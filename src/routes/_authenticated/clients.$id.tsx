@@ -18,7 +18,8 @@ import {
 } from "recharts";
 import { generateBrief } from "@/lib/anthropic.functions";
 import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
-import { currentWeekMonday, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
+import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors } from "@/lib/signals.functions";
+import { currentWeekMonday, getErrorMessage, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
   Client, Signal, Brief, SignalType,
 } from "@/lib/terrain-types";
