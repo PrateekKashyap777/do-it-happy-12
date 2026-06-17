@@ -4,8 +4,8 @@ import { z } from "zod";
 // ─── shared types ────────────────────────────────────────────────────────────
 type SignalRow = {
   client_id: string;
-  signal_type: "news" | "market" | "competitor";
-  source: "rss" | "aqi" | "youtube";
+  signal_type: "news" | "market" | "competitor" | "rera" | "buyer_behaviour" | "search_query";
+  source: "rss" | "aqi" | "youtube" | "manual" | "dataforseo";
   title: string;
   content: string;
   data: Record<string, unknown>;
@@ -13,6 +13,22 @@ type SignalRow = {
   week_date: string;
   is_included: boolean;
 };
+
+// ─── DataForSEO helper (inline so signals module stays self-contained) ──────
+async function dfsPost(path: string, body: unknown): Promise<unknown> {
+  const login = process.env.DATAFORSEO_LOGIN;
+  const password = process.env.DATAFORSEO_PASSWORD;
+  if (!login || !password) throw new Error("Missing DATAFORSEO_LOGIN or DATAFORSEO_PASSWORD");
+  const encoded = Buffer.from(`${login}:${password}`).toString("base64");
+  const res = await fetch(`https://api.dataforseo.com/v3${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Basic ${encoded}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`DataForSEO error ${res.status}`);
+  const json = (await res.json()) as { tasks?: Array<{ result?: unknown[] }> };
+  return json.tasks?.[0]?.result ?? [];
+}
 
 async function insertSignals(rows: SignalRow[]) {
   if (rows.length === 0) return 0;
