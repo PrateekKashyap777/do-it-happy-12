@@ -135,7 +135,9 @@ function BriefStudio() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally { setSaving(false); }
-  }
+  saveDraftRef.current = () => { if (!saving) saveDraft(); };
+
+
 
   async function updateStatus(status: Brief["status"]) {
     const patch: Record<string, unknown> = { status, reviewer_notes: notes, content };
