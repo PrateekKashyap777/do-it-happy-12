@@ -25,17 +25,6 @@ async function insertSignals(rows: SignalRow[]) {
   return rows.length;
 }
 
-function extractTags(xml: string, tag: string): string[] {
-  const re = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "gi");
-  const out: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(xml)) !== null) out.push(m[1]);
-  return out;
-}
-
-function stripCdata(s: string): string {
-  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, "").trim();
-}
 
 // ─── 1. NEWS via Anthropic web_search ────────────────────────────────────────
 export const pullNewsSignals = createServerFn({ method: "POST" })
