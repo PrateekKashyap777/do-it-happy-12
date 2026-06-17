@@ -58,7 +58,14 @@ export const pullNewsSignals = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { clientId, keywords, competitors, weekDate, limit } = data;
     const since = Date.now() - 1000 * 60 * 60 * 24 * 7;
-    const allTerms = [...keywords, ...competitors].map((t) => t.toLowerCase());
+    const STOP = new Set(["from","with","that","this","have","will","your","what","more","into","than","they","them","some","been","here","when","were","also","flat","plot","bhk","for","the","and","are","not","but"]);
+
+    const shortTerms = [
+      ...keywords.flatMap((kw) =>
+        kw.toLowerCase().split(/[\s,/]+/).filter((w) => w.length >= 4 && !STOP.has(w))
+      ),
+      ...competitors.map((c) => c.toLowerCase()),
+    ].filter((t, i, arr) => t.length > 0 && arr.indexOf(t) === i);
 
     const feedResults = await Promise.allSettled(
       REAL_ESTATE_FEEDS.map(async (feed) => {
@@ -81,9 +88,9 @@ export const pullNewsSignals = createServerFn({ method: "POST" })
           const ts = pub ? new Date(pub).getTime() : NaN;
           if (Number.isFinite(ts) && ts < since) continue;
 
-          if (allTerms.length > 0) {
+          if (shortTerms.length > 0) {
             const combined = (title + " " + desc).toLowerCase();
-            if (!allTerms.some((t) => combined.includes(t))) continue;
+            if (!shortTerms.some((t) => combined.includes(t))) continue;
           }
 
           rows.push({
@@ -115,6 +122,28 @@ export const pullNewsSignals = createServerFn({ method: "POST" })
       }
     }
 
+    if (allRows.length === 0) {
+      const fallback = await Promise.allSettled(
+        REAL_ESTATE_FEEDS.slice(0, 2).map(async (feed) => {
+          try {
+            const r = await fetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) });
+            if (!r.ok) return [];
+            const xml = await r.text();
+            return extractTags(xml, "item").slice(0, 3).flatMap((item) => {
+              const t2 = stripCdata(extractTags(item, "title")[0] ?? "");
+              const l2 = stripCdata(extractTags(item, "link")[0] ?? "");
+              const p2 = stripCdata(extractTags(item, "pubDate")[0] ?? "");
+              const d2 = stripCdata(extractTags(item, "description")[0] ?? "");
+              if (!t2) return [];
+              return [{ client_id: clientId, signal_type: "news" as const, source: "rss" as const, title: t2.slice(0, 200), content: d2.slice(0, 300) || feed.name, data: { url: l2, feed_source: feed.name, published_at: p2 }, urgency: "low" as const, week_date: weekDate, is_included: true }];
+            });
+          } catch { return []; }
+        })
+      );
+      for (const r of fallback) {
+        if (r.status === "fulfilled") allRows.push(...(r.value as SignalRow[]));
+      }
+    }
     const inserted = await insertSignals(allRows.slice(0, limit));
     return { inserted };
   });

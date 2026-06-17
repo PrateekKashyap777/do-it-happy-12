@@ -98,7 +98,7 @@ function BriefStudio() {
       const brief = data as unknown as Brief;
       const [c, s] = await Promise.all([
         supabase.from("clients").select("*").eq("id", brief.client_id).single(),
-        supabase.from("signals").select("*").eq("client_id", brief.client_id).eq("week_date", brief.week_date),
+        supabase.from("signals").select("*").eq("client_id", brief.client_id).order("created_at", { ascending: false }).limit(200),
       ]);
       if (c.error) throw c.error;
       if (s.error) throw s.error;
