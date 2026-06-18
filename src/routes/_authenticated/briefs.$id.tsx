@@ -113,6 +113,22 @@ function BriefStudio() {
     },
   });
 
+  const { data: clientBriefs } = useQuery({
+    queryKey: ["client-briefs", data?.brief.client_id],
+    queryFn: async () => {
+      if (!data?.brief.client_id) return [];
+      const { data: rows } = await supabase
+        .from("briefs")
+        .select("id, week_date, status")
+        .eq("client_id", data.brief.client_id)
+        .order("week_date", { ascending: false })
+        .limit(12);
+      return (rows ?? []) as Array<{ id: string; week_date: string; status: Brief["status"] }>;
+    },
+    enabled: !!data?.brief.client_id,
+  });
+
+
   useEffect(() => {
     if (data?.brief) {
       setContent(data.brief.content);
