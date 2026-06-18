@@ -632,28 +632,45 @@ function ClientDetail() {
           <div className="terr-card p-5">
             <div className="terr-label mb-3">Brief Status</div>
             {currentBrief ? (
-              <div>
-                <div className={`terr-badge ${currentBrief.status === "sent" ? "bg-primary/25 text-primary-foreground" : currentBrief.status === "approved" ? "bg-success/15 text-success" : currentBrief.status === "review" ? "bg-warning/15 text-warning" : "bg-elevated text-muted-foreground"}`}>
-                  {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
-                </div>
-                <Link to="/briefs/$id" params={{ id: currentBrief.id }} className="block mt-3">
-                  <Button variant="outline" className="w-full">Open Brief</Button>
-                </Link>
+              <div className="space-y-2">
+                <Button
+                  className="w-full bg-primary hover:bg-primary-hover"
+                  onClick={() => navigate({ to: "/briefs/$id", params: { id: currentBrief.id } })}
+                >
+                  View Brief
+                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-sm ${
+                    currentBrief.status === "sent" ? "bg-primary-foreground/20" :
+                    currentBrief.status === "approved" ? "bg-success/20" :
+                    "bg-warning/20"
+                  }`}>
+                    {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
+                  </span>
+                </Button>
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? "Generating..." : "↺ Regenerate for this week"}
+                </button>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No brief generated yet.</p>
-            )}
-            <Button
-              className="w-full mt-3 bg-primary hover:bg-primary-hover"
-              disabled={generating || includedCount < 2 || !!currentBrief}
-              onClick={handleGenerate}
-            >
-              {generating ? "Synthesising..." : currentBrief ? "Brief Exists" : "Generate Brief"}
-            </Button>
-            {includedCount < 2 && !currentBrief && (
-              <p className="text-[11px] text-muted-foreground mt-2">Need at least 2 included signals.</p>
+              <>
+                <p className="text-sm text-muted-foreground mb-3">No brief generated yet.</p>
+                <Button
+                  className="w-full bg-primary hover:bg-primary-hover"
+                  onClick={handleGenerate}
+                  disabled={generating || includedCount < 2}
+                >
+                  {generating ? "Synthesising..." : "Generate Brief"}
+                </Button>
+                {includedCount < 2 && (
+                  <p className="text-[11px] text-muted-foreground mt-2">Need at least 2 included signals.</p>
+                )}
+              </>
             )}
           </div>
+
 
           {briefs.length > 0 && (
             <div className="terr-card p-5">
