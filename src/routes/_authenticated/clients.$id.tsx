@@ -325,13 +325,15 @@ function ClientDetail() {
           <span className={`terr-badge ${client.status === "active" ? "bg-success/15 text-success" : "bg-elevated text-muted-foreground"}`}>
             {client.status}
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { window.location.href = `/clients/${client.id}/settings`; }}
-          >
-            Settings
-          </Button>
+          {view === "detail" ? (
+            <Button variant="ghost" size="sm" onClick={() => setView("settings")}>
+              Settings
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => setView("detail")}>
+              ← Back
+            </Button>
+          )}
         </div>
       </div>
 
