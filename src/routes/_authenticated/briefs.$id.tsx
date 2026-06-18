@@ -313,6 +313,26 @@ function BriefStudio() {
         <span className="text-foreground">Brief · {brief.week_date}</span>
       </div>
 
+      {clientBriefs && clientBriefs.length > 1 && (
+        <div className="flex items-center gap-2 mb-3">
+          <p className="text-xs text-muted-foreground">Brief:</p>
+          <select
+            value={id}
+            onChange={(e) => navigate({ to: "/briefs/$id", params: { id: e.target.value } })}
+            className="text-xs bg-elevated border border-border rounded-sm px-2 py-1 text-foreground"
+          >
+            {clientBriefs.map((b) => (
+              <option key={b.id} value={b.id}>
+                Week of {new Date(b.week_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                {" "}— {BRIEF_STATUS_LABEL[b.status] ?? b.status}
+                {b.id === id ? " (current)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold">Brief Studio</h1>
