@@ -281,9 +281,35 @@ function ClientDetail() {
           promise: pullRERA({ data: { clientId: client.id, market: client.market_geography, keywords: kws, weekDate: week } }),
         });
       }
+
+      const initialProgress: Record<string, "pending" | "done" | "failed"> = {};
+      tasks.forEach((t) => { initialProgress[t.label] = "pending"; });
+      initialProgress["Buyer intent"] = "pending";
+      setPullProgress(initialProgress);
+
+      const trackedTasks = tasks.map((task) => ({
+        ...task,
+        promise: task.promise.then((r) => {
+          setPullProgress((prev) => ({ ...prev, [task.label]: "done" }));
+          return r;
+        }).catch((e) => {
+          setPullProgress((prev) => ({ ...prev, [task.label]: "failed" }));
+          throw e;
+        }),
+      }));
+
       // Buyer intent runs last so it can read the freshly-pulled keyword signals
-      const earlyResults = await Promise.allSettled(tasks.map((t) => t.promise));
-      const buyerTask = { label: "Buyer intent", promise: pullBuyer({ data: { clientId: client.id, weekDate: week } }) };
+      const earlyResults = await Promise.allSettled(trackedTasks.map((t) => t.promise));
+      const buyerPromise = pullBuyer({ data: { clientId: client.id, weekDate: week } })
+        .then((r) => {
+          setPullProgress((prev) => ({ ...prev, "Buyer intent": "done" }));
+          return r;
+        })
+        .catch((e) => {
+          setPullProgress((prev) => ({ ...prev, "Buyer intent": "failed" }));
+          throw e;
+        });
+      const buyerTask = { label: "Buyer intent", promise: buyerPromise };
       const buyerResult = await Promise.allSettled([buyerTask.promise]);
       const allTasks = [...tasks, buyerTask];
       const results = [...earlyResults, ...buyerResult];
@@ -306,8 +332,10 @@ function ClientDetail() {
       toast.error(getErrorMessage(err, "Pull All failed"));
     } finally {
       setPullingAll(false);
+      setTimeout(() => setPullProgress({}), 3000);
     }
   }
+
 
   if (isLoading || !client) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading client...</div></AppShell>;
