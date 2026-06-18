@@ -68,6 +68,7 @@ const BRIEF_STATUS_LABEL: Record<string, string> = {
 
 function BriefStudio() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const regen = useServerFn(regenerateSection);
   const genBrief = useServerFn(generateBrief);
   const sendEmail = useServerFn(sendBriefEmail);
@@ -78,9 +79,11 @@ function BriefStudio() {
   const [regenAll, setRegenAll] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(new Set());
   const [previewMode, setPreviewMode] = useState(false);
+
   function togglePanel(key: string) {
     setExpandedPanels((prev) => {
       const next = new Set(prev);
