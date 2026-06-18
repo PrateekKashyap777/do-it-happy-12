@@ -125,7 +125,9 @@ function ClientDetail() {
   const [generating, setGenerating] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [pullingAll, setPullingAll] = useState(false);
+  const [pullProgress, setPullProgress] = useState<Record<string, "pending" | "done" | "failed">>({});
   const [view, setView] = useState<"detail" | "settings">("detail");
+
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["client-detail", id, week],
