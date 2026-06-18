@@ -337,6 +337,13 @@ function ClientDetail() {
         </div>
       </div>
 
+      {view === "settings" ? (
+        <ClientSettingsInline
+          client={client}
+          clientId={id}
+          onSaved={() => { refetch(); }}
+        />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
         {/* LEFT: feed */}
         <div className="space-y-4">
