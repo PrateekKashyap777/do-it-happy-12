@@ -252,7 +252,13 @@ function ClientDetail() {
       });
       tasks.push({
         label: "AQI",
-        promise: checkAQI({ data: { clientId: client.id, weekDate: week, sourceCities: ["delhi", "gurgaon"], destinationCity: "dehradun", threshold: 280 } })
+        promise: checkAQI({ data: {
+          clientId: client.id,
+          weekDate: week,
+          sourceCities: client.aqi_source_cities && client.aqi_source_cities.length > 0 ? client.aqi_source_cities : ["delhi", "gurgaon"],
+          destinationCity: client.aqi_destination_city || client.market_geography?.split(",")[0]?.trim().toLowerCase() || "dehradun",
+          threshold: client.aqi_threshold ?? 280,
+        } })
           .then((r) => ({ inserted: r.inserted })),
       });
       if (comps.length > 0) {
@@ -850,6 +856,117 @@ function ClientSettingsInline({
         </SettingsField>
         <SettingsField label="Competitors"><TagInput value={form.competitors} onChange={(v) => patch({ competitors: v })} placeholder="Add a competitor" /></SettingsField>
         <SettingsField label="GSC Property URL"><Input value={form.gsc_property_url} onChange={(e) => patch({ gsc_property_url: e.target.value })} /></SettingsField>
+      </SettingsSection>
+
+      <SettingsSection title="Integrations">
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-medium text-foreground mb-0.5">Meta</p>
+            <p className="text-xs text-muted-foreground">
+              Competitor ad intelligence uses a shared Terrain access token.
+              Add your own account details below to enable campaign performance
+              data (Phase 2 — requires Meta App approval).
+            </p>
+          </div>
+          <SettingsField
+            label="Meta Ad Account ID"
+            hint="Your ad account ID from Meta Business Manager (act_XXXXXXXXXX). Used for campaign performance data."
+          >
+            <Input
+              value={form.meta_ad_account_id}
+              onChange={(e) => patch({ meta_ad_account_id: e.target.value })}
+              placeholder="act_XXXXXXXXXXXXXXXXX"
+              className="font-mono text-sm"
+            />
+          </SettingsField>
+          <SettingsField
+            label="Facebook Page ID"
+            hint="Your brand's Facebook Page ID. Used to track your own ads in the Meta Ads Library."
+          >
+            <Input
+              value={form.meta_page_id}
+              onChange={(e) => patch({ meta_page_id: e.target.value })}
+              placeholder="e.g. 123456789012345"
+              className="font-mono text-sm"
+            />
+          </SettingsField>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <span className="text-foreground font-medium">How to find your Page ID:</span>{" "}
+            Go to your Facebook Page → About → scroll to the bottom. The Page ID is a long number.{" "}
+            <span className="text-foreground font-medium">How to find your Ad Account ID:</span>{" "}
+            Go to business.facebook.com → Ad Accounts. It starts with "act_".
+          </p>
+        </div>
+
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div>
+            <p className="text-xs font-medium text-foreground mb-0.5">AQI Watch</p>
+            <p className="text-xs text-muted-foreground">
+              Configure which cities to compare for the AQI campaign trigger.
+              Source cities are where your buyers live — destination is your market.
+            </p>
+          </div>
+          <SettingsField
+            label="Source cities (buyer locations)"
+            hint="Cities where your buyers currently live. High AQI here triggers a burst campaign. Separate with commas."
+          >
+            <Input
+              value={(form.aqi_source_cities ?? []).join(", ")}
+              onChange={(e) =>
+                patch({
+                  aqi_source_cities: e.target.value
+                    .split(",")
+                    .map((s) => s.trim().toLowerCase())
+                    .filter(Boolean),
+                })
+              }
+              placeholder="delhi, gurgaon, noida"
+              className="text-sm"
+            />
+          </SettingsField>
+          <SettingsField
+            label="Destination city (your market)"
+            hint="The city where your properties are. Low AQI here is the clean-air advantage."
+          >
+            <Input
+              value={form.aqi_destination_city}
+              onChange={(e) => patch({ aqi_destination_city: e.target.value.toLowerCase().trim() })}
+              placeholder="e.g. dehradun"
+              className="text-sm"
+            />
+          </SettingsField>
+          <SettingsField
+            label="AQI trigger threshold"
+            hint="When any source city exceeds this AQI level, a HIGH urgency campaign signal is created. Default: 280."
+          >
+            <div className="flex items-center gap-3">
+              <Input
+                type="number"
+                value={form.aqi_threshold}
+                onChange={(e) => patch({ aqi_threshold: Number(e.target.value) })}
+                className="w-24 text-sm font-mono"
+                min={100}
+                max={500}
+              />
+              <span className="text-xs text-muted-foreground">
+                {form.aqi_threshold < 150 ? "Low — triggers often" :
+                 form.aqi_threshold < 250 ? "Moderate threshold" :
+                 form.aqi_threshold <= 300 ? "Recommended for hill stations" :
+                 "High — triggers rarely"}
+              </span>
+            </div>
+          </SettingsField>
+        </div>
+
+        <div className="space-y-2 pt-4 border-t border-border">
+          <p className="text-xs font-medium text-foreground">Google Search Console</p>
+          <p className="text-xs text-muted-foreground">
+            The GSC property URL is set in Intelligence Config above. Automated GSC pulls (OAuth) are on the roadmap.
+          </p>
+          <p className="text-[11px] text-muted-foreground font-mono">
+            Current GSC URL: {form.gsc_property_url || "Not set — add in Intelligence Config above"}
+          </p>
+        </div>
       </SettingsSection>
 
       <SettingsSection title="Social Profiles">
