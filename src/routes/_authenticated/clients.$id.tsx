@@ -1,28 +1,38 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { AddSignalModal } from "@/components/AddSignalModal";
 import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
 import { SocialWatchlist } from "@/components/SocialWatchlist";
+import { TagInput } from "@/components/TagInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { MapPin, RefreshCw, Sparkles, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { MapPin, RefreshCw, Sparkles, ChevronLeft, ChevronRight, ChevronDown, Plus, X, Wand2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
 } from "recharts";
-import { generateBrief } from "@/lib/anthropic.functions";
+import { generateBrief, generateDefaultSystemPrompt } from "@/lib/anthropic.functions";
 import { pullLiveKeywordData } from "@/lib/dataforseo.functions";
 import { pullNewsSignals, checkAQISignal, pullYouTubeCompetitors, pullRERASignals, pullBuyerBehaviourSignals, pullMetaAds } from "@/lib/signals.functions";
 import { currentWeekMonday, getErrorMessage, formatSignalsForPrompt as _fmt } from "@/lib/terrain-utils";
 import type {
-  Client, Signal, Brief, SignalType, SocialProfile,
+  Client, Signal, Brief, SignalType, SocialProfile, BuyerPersona,
 } from "@/lib/terrain-types";
 import { SIGNAL_TYPE_LABELS, SIGNAL_SOURCE_LABELS } from "@/lib/terrain-types";
 
