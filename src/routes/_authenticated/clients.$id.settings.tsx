@@ -36,6 +36,7 @@ function ClientSettings() {
   const [newName, setNewName] = useState("");
   const [newIG, setNewIG] = useState("");
   const [newFB, setNewFB] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["client", id],
@@ -48,7 +49,20 @@ function ClientSettings() {
 
   useEffect(() => {
     if (data) {
-      setForm(data);
+      setForm({
+        ...data,
+        name: data.name ?? "",
+        market_geography: data.market_geography ?? "",
+        keywords: data.keywords ?? [],
+        competitors: data.competitors ?? [],
+        buyer_personas: data.buyer_personas ?? [],
+        system_prompt: data.system_prompt ?? "",
+        gsc_property_url: data.gsc_property_url ?? "",
+        brief_delivery_method: data.brief_delivery_method ?? "whatsapp",
+        brief_delivery_contact: data.brief_delivery_contact ?? "",
+        agency_name: data.agency_name ?? "",
+        status: data.status ?? "active",
+      });
       setSocialProfiles((data.social_profiles as SocialProfile[]) ?? []);
     }
   }, [data]);
@@ -57,7 +71,7 @@ function ClientSettings() {
     return <AppShell><div className="text-sm text-muted-foreground">Loading...</div></AppShell>;
   }
 
-  function patch(p: Partial<Client>) { setForm((f) => f ? { ...f, ...p } : f); }
+  function patch(p: Partial<Client>) { setForm((f) => f ? { ...f, ...p } : f); setIsDirty(true); }
 
   async function save() {
     if (!form) return;
@@ -80,6 +94,7 @@ function ClientSettings() {
       }).eq("id", id);
       if (error) throw error;
       toast.success("Saved");
+      setIsDirty(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally { setBusy(false); }
@@ -105,11 +120,26 @@ function ClientSettings() {
       },
     ];
     setSocialProfiles(updated);
+    // Auto-save to DB immediately when a profile is added
+    supabase.from("clients")
+      .update({ social_profiles: updated as never })
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) toast.error("Failed to save profile");
+        else toast.success("Profile added and saved");
+      });
     setNewName(""); setNewIG(""); setNewFB("");
   }
 
   function removeProfile(profileId: string) {
     setSocialProfiles((prev) => prev.filter((p) => p.id !== profileId));
+    const remaining = socialProfiles.filter((p) => p.id !== profileId);
+    supabase.from("clients")
+      .update({ social_profiles: remaining as never })
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) toast.error("Failed to remove profile");
+      });
   }
 
   return (
@@ -124,9 +154,17 @@ function ClientSettings() {
 
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-semibold">Client Settings</h1>
-        <Button className="bg-primary hover:bg-primary-hover" disabled={busy} onClick={save}>
-          {busy ? "Saving..." : "Save Changes"}
-        </Button>
+        <div className="flex items-center gap-3">
+          {isDirty && (
+            <span className="flex items-center gap-1.5 text-xs text-amber-400">
+              <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
+              Unsaved changes
+            </span>
+          )}
+          <Button className="bg-primary hover:bg-primary-hover" disabled={busy} onClick={save}>
+            {busy ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-6 max-w-3xl">
