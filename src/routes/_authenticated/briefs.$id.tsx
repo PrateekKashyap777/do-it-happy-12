@@ -192,6 +192,15 @@ function BriefStudio() {
   }
   saveDraftRef.current = () => { if (!saving) saveDraft(); };
 
+  async function handleDeleteBrief() {
+    const clientId = data?.brief.client_id;
+    const { error } = await supabase.from("briefs").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Brief deleted");
+    if (clientId) navigate({ to: "/clients/$id", params: { id: clientId } });
+  }
+
+
 
 
 
