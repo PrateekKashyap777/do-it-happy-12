@@ -15,7 +15,8 @@ export type SignalSource =
   | "n8n"
   | "dataforseo"
   | "youtube"
-  | "aqi";
+  | "aqi"
+  | "meta";
 
 
 export type Urgency = "high" | "medium" | "low";
@@ -125,5 +126,6 @@ export const SIGNAL_SOURCE_LABELS: Record<SignalSource, string> = {
   dataforseo: "DataForSEO",
   youtube: "YouTube",
   aqi: "AQI",
+  meta: "Meta Ads",
 };
 
