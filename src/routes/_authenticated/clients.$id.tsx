@@ -125,7 +125,9 @@ function ClientDetail() {
   const [generating, setGenerating] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [pullingAll, setPullingAll] = useState(false);
+  const [pullProgress, setPullProgress] = useState<Record<string, "pending" | "done" | "failed">>({});
   const [view, setView] = useState<"detail" | "settings">("detail");
+
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["client-detail", id, week],
@@ -279,9 +281,35 @@ function ClientDetail() {
           promise: pullRERA({ data: { clientId: client.id, market: client.market_geography, keywords: kws, weekDate: week } }),
         });
       }
+
+      const initialProgress: Record<string, "pending" | "done" | "failed"> = {};
+      tasks.forEach((t) => { initialProgress[t.label] = "pending"; });
+      initialProgress["Buyer intent"] = "pending";
+      setPullProgress(initialProgress);
+
+      const trackedTasks = tasks.map((task) => ({
+        ...task,
+        promise: task.promise.then((r) => {
+          setPullProgress((prev) => ({ ...prev, [task.label]: "done" }));
+          return r;
+        }).catch((e) => {
+          setPullProgress((prev) => ({ ...prev, [task.label]: "failed" }));
+          throw e;
+        }),
+      }));
+
       // Buyer intent runs last so it can read the freshly-pulled keyword signals
-      const earlyResults = await Promise.allSettled(tasks.map((t) => t.promise));
-      const buyerTask = { label: "Buyer intent", promise: pullBuyer({ data: { clientId: client.id, weekDate: week } }) };
+      const earlyResults = await Promise.allSettled(trackedTasks.map((t) => t.promise));
+      const buyerPromise = pullBuyer({ data: { clientId: client.id, weekDate: week } })
+        .then((r) => {
+          setPullProgress((prev) => ({ ...prev, "Buyer intent": "done" }));
+          return r;
+        })
+        .catch((e) => {
+          setPullProgress((prev) => ({ ...prev, "Buyer intent": "failed" }));
+          throw e;
+        });
+      const buyerTask = { label: "Buyer intent", promise: buyerPromise };
       const buyerResult = await Promise.allSettled([buyerTask.promise]);
       const allTasks = [...tasks, buyerTask];
       const results = [...earlyResults, ...buyerResult];
@@ -304,8 +332,10 @@ function ClientDetail() {
       toast.error(getErrorMessage(err, "Pull All failed"));
     } finally {
       setPullingAll(false);
+      setTimeout(() => setPullProgress({}), 3000);
     }
   }
+
 
   if (isLoading || !client) {
     return <AppShell><div className="text-sm text-muted-foreground">Loading client...</div></AppShell>;
@@ -387,6 +417,15 @@ function ClientDetail() {
               <Button variant="outline" size="sm" onClick={() => setModal(true)}>+ Add Signal</Button>
             </div>
             <div className="mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] text-muted-foreground">
+                  Toggle signals on/off to control what Claude reads when generating the brief.
+                </p>
+                <p className="text-[10px] font-medium text-foreground">
+                  {includedCount} of {signals?.length ?? 0} included
+                </p>
+              </div>
+
               <Tabs value={tab} onValueChange={(v) => setTab(v as "all" | SignalType)}>
                 <TabsList className="bg-elevated overflow-x-auto flex-wrap h-auto">
                   {TYPE_TABS.map((t) => (
@@ -515,6 +554,15 @@ function ClientDetail() {
                 </>
               )}
             </Button>
+            {(!client.keywords || client.keywords.length === 0) && (
+              <div className="terr-elevated border border-warning/30 rounded-sm p-3 mb-2 mt-2">
+                <p className="text-xs text-warning font-medium">No keywords configured</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Keyword and trends signals will be skipped. Use Discover Keywords
+                  in Settings first for full intelligence.
+                </p>
+              </div>
+            )}
             <Button
               type="button"
               className="w-full mt-2 bg-primary hover:bg-primary-hover"
@@ -534,6 +582,25 @@ function ClientDetail() {
                 </>
               )}
             </Button>
+            {pullingAll && Object.keys(pullProgress).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {Object.entries(pullProgress).map(([label, status]) => (
+                  <span
+                    key={label}
+                    className={`text-[9px] px-1.5 py-0.5 rounded-sm font-medium ${
+                      status === "done"
+                        ? "bg-success/15 text-success"
+                        : status === "failed"
+                        ? "bg-danger/15 text-danger"
+                        : "bg-elevated text-muted-foreground animate-pulse"
+                    }`}
+                  >
+                    {status === "done" ? "✓" : status === "failed" ? "✗" : "⟳"} {label}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <Button
               type="button"
               variant="outline"
@@ -565,28 +632,45 @@ function ClientDetail() {
           <div className="terr-card p-5">
             <div className="terr-label mb-3">Brief Status</div>
             {currentBrief ? (
-              <div>
-                <div className={`terr-badge ${currentBrief.status === "sent" ? "bg-primary/25 text-primary-foreground" : currentBrief.status === "approved" ? "bg-success/15 text-success" : currentBrief.status === "review" ? "bg-warning/15 text-warning" : "bg-elevated text-muted-foreground"}`}>
-                  {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
-                </div>
-                <Link to="/briefs/$id" params={{ id: currentBrief.id }} className="block mt-3">
-                  <Button variant="outline" className="w-full">Open Brief</Button>
-                </Link>
+              <div className="space-y-2">
+                <Button
+                  className="w-full bg-primary hover:bg-primary-hover"
+                  onClick={() => navigate({ to: "/briefs/$id", params: { id: currentBrief.id } })}
+                >
+                  View Brief
+                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-sm ${
+                    currentBrief.status === "sent" ? "bg-primary-foreground/20" :
+                    currentBrief.status === "approved" ? "bg-success/20" :
+                    "bg-warning/20"
+                  }`}>
+                    {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
+                  </span>
+                </Button>
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? "Generating..." : "↺ Regenerate for this week"}
+                </button>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No brief generated yet.</p>
-            )}
-            <Button
-              className="w-full mt-3 bg-primary hover:bg-primary-hover"
-              disabled={generating || includedCount < 2 || !!currentBrief}
-              onClick={handleGenerate}
-            >
-              {generating ? "Synthesising..." : currentBrief ? "Brief Exists" : "Generate Brief"}
-            </Button>
-            {includedCount < 2 && !currentBrief && (
-              <p className="text-[11px] text-muted-foreground mt-2">Need at least 2 included signals.</p>
+              <>
+                <p className="text-sm text-muted-foreground mb-3">No brief generated yet.</p>
+                <Button
+                  className="w-full bg-primary hover:bg-primary-hover"
+                  onClick={handleGenerate}
+                  disabled={generating || includedCount < 2}
+                >
+                  {generating ? "Synthesising..." : "Generate Brief"}
+                </Button>
+                {includedCount < 2 && (
+                  <p className="text-[11px] text-muted-foreground mt-2">Need at least 2 included signals.</p>
+                )}
+              </>
             )}
           </div>
+
 
           {briefs.length > 0 && (
             <div className="terr-card p-5">

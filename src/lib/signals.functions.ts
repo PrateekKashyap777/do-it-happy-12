@@ -122,7 +122,7 @@ export const pullNewsSignals = createServerFn({ method: "POST" })
       content: (item.summary ?? "").slice(0, 300),
       data: {
         url: item.url ?? "",
-        feed_source: item.source ?? "Market Intelligence",
+        feed_source: "Market Intelligence",
         published_at: item.published_date ?? new Date().toISOString(),
       },
       urgency: "medium" as const,

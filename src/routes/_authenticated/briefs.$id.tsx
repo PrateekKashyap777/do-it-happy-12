@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -68,6 +68,7 @@ const BRIEF_STATUS_LABEL: Record<string, string> = {
 
 function BriefStudio() {
   const { id } = Route.useParams();
+  const navigate = useNavigate();
   const regen = useServerFn(regenerateSection);
   const genBrief = useServerFn(generateBrief);
   const sendEmail = useServerFn(sendBriefEmail);
@@ -78,9 +79,11 @@ function BriefStudio() {
   const [regenAll, setRegenAll] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [expandedPanels, setExpandedPanels] = useState<Set<string>>(new Set());
   const [previewMode, setPreviewMode] = useState(false);
+
   function togglePanel(key: string) {
     setExpandedPanels((prev) => {
       const next = new Set(prev);
@@ -109,6 +112,22 @@ function BriefStudio() {
       };
     },
   });
+
+  const { data: clientBriefs } = useQuery({
+    queryKey: ["client-briefs", data?.brief.client_id],
+    queryFn: async () => {
+      if (!data?.brief.client_id) return [];
+      const { data: rows } = await supabase
+        .from("briefs")
+        .select("id, week_date, status")
+        .eq("client_id", data.brief.client_id)
+        .order("week_date", { ascending: false })
+        .limit(12);
+      return (rows ?? []) as Array<{ id: string; week_date: string; status: Brief["status"] }>;
+    },
+    enabled: !!data?.brief.client_id,
+  });
+
 
   useEffect(() => {
     if (data?.brief) {
@@ -173,6 +192,15 @@ function BriefStudio() {
   }
   saveDraftRef.current = () => { if (!saving) saveDraft(); };
 
+  async function handleDeleteBrief() {
+    const clientId = data?.brief.client_id;
+    const { error } = await supabase.from("briefs").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Brief deleted");
+    if (clientId) navigate({ to: "/clients/$id", params: { id: clientId } });
+  }
+
+
 
 
 
@@ -202,6 +230,7 @@ function BriefStudio() {
           },
         });
         toast.success("Brief marked sent and email delivered.");
+        setTimeout(() => navigate({ to: "/clients/$id", params: { id: brief.client_id } }), 2000);
       } catch (err) {
         toast.warning(
           `Marked sent but email delivery failed — ${getErrorMessage(err, "check RESEND_API_KEY in environment settings")}`,
@@ -209,7 +238,11 @@ function BriefStudio() {
       }
     } else {
       toast.success(`Marked ${BRIEF_STATUS_LABEL[status] ?? status}`);
+      if (status === "sent") {
+        setTimeout(() => navigate({ to: "/clients/$id", params: { id: brief.client_id } }), 2000);
+      }
     }
+
 
     refetch();
   }
@@ -279,6 +312,26 @@ function BriefStudio() {
         <span className="mx-2">/</span>
         <span className="text-foreground">Brief · {brief.week_date}</span>
       </div>
+
+      {clientBriefs && clientBriefs.length > 1 && (
+        <div className="flex items-center gap-2 mb-3">
+          <p className="text-xs text-muted-foreground">Brief:</p>
+          <select
+            value={id}
+            onChange={(e) => navigate({ to: "/briefs/$id", params: { id: e.target.value } })}
+            className="text-xs bg-elevated border border-border rounded-sm px-2 py-1 text-foreground"
+          >
+            {clientBriefs.map((b) => (
+              <option key={b.id} value={b.id}>
+                Week of {new Date(b.week_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                {" "}— {BRIEF_STATUS_LABEL[b.status] ?? b.status}
+                {b.id === id ? " (current)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
 
       <div className="flex items-start justify-between mb-8">
         <div>
@@ -478,8 +531,35 @@ function BriefStudio() {
             <div className="text-xs">
               <span className="text-muted-foreground">Contact:</span>{" "}
               <span className="font-mono">{client.brief_delivery_contact || "—"}</span>
-            </div>
           </div>
+
+          <div className="border-t border-border pt-4 mt-4">
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="text-xs text-muted-foreground hover:text-danger w-full text-center"
+              >
+                Delete this brief
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-center text-danger">Delete this brief permanently?</p>
+                <p className="text-[10px] text-center text-muted-foreground">
+                  Signals are kept. You can generate a new brief from Client Detail.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setConfirmDelete(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" className="flex-1 text-xs bg-danger hover:bg-danger/90" onClick={handleDeleteBrief}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         </div>
       </div>
 

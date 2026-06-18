@@ -39,10 +39,19 @@ export function AddSignalModal({ open, onOpenChange, clientId, weekDate, onSaved
   const [volume, setVolume] = useState("");
   const [movement, setMovement] = useState("");
 
+  // Buyer behaviour quantitative fields
+  const [formFills, setFormFills] = useState("");
+  const [cpl, setCpl] = useState("");
+  const [waResponseRate, setWaResponseRate] = useState("");
+  const [siteVisits, setSiteVisits] = useState("");
+  const [adSpend, setAdSpend] = useState("");
+
   function resetFields() {
     setTitle(""); setContent(""); setUrgency("medium");
     setImpressions(""); setClicks(""); setCtr(""); setPosition(""); setWeekChange("");
     setVolume(""); setMovement("");
+    setFormFills(""); setCpl(""); setWaResponseRate("");
+    setSiteVisits(""); setAdSpend("");
   }
 
   function buildData(): Record<string, number> {
@@ -60,9 +69,22 @@ export function AddSignalModal({ open, onOpenChange, clientId, weekDate, onSaved
         const n = num(v);
         if (n !== null && !Number.isNaN(n)) data[k] = n;
       }
+    } else if (type === "buyer_behaviour") {
+      const map = {
+        form_fills: formFills,
+        cpl,
+        whatsapp_response_rate: waResponseRate,
+        site_visits: siteVisits,
+        spend: adSpend,
+      };
+      for (const [k, v] of Object.entries(map)) {
+        const n = num(v);
+        if (n !== null && !Number.isNaN(n)) data[k] = n;
+      }
     }
     return data;
   }
+
 
   async function save() {
     if (!title.trim()) { toast.error("Title is required"); return; }
@@ -143,6 +165,35 @@ export function AddSignalModal({ open, onOpenChange, clientId, weekDate, onSaved
               </div>
             </div>
           )}
+
+          {type === "buyer_behaviour" && (
+            <div className="space-y-2 border border-border rounded-md p-3">
+              <Label className="terr-label">Campaign Data (optional)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1">Form fills</p>
+                  <Input type="number" placeholder="e.g. 47" value={formFills} onChange={(e) => setFormFills(e.target.value)} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1">CPL (₹)</p>
+                  <Input type="number" placeholder="e.g. 340" value={cpl} onChange={(e) => setCpl(e.target.value)} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1">WA response rate (%)</p>
+                  <Input type="number" placeholder="e.g. 34" value={waResponseRate} onChange={(e) => setWaResponseRate(e.target.value)} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground mb-1">Site visits</p>
+                  <Input type="number" placeholder="e.g. 240" value={siteVisits} onChange={(e) => setSiteVisits(e.target.value)} />
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] text-muted-foreground mb-1">Ad spend (₹)</p>
+                  <Input type="number" placeholder="e.g. 16000" value={adSpend} onChange={(e) => setAdSpend(e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
 
           <div className="space-y-2">
             <Label className="terr-label">Urgency</Label>

@@ -311,9 +311,15 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
             <span className="text-[10px] text-muted-foreground">
               — what Claude read to write this brief
             </span>
-            <span className="ml-auto text-[10px] text-muted-foreground">
-              {newsSignals.length} article{newsSignals.length !== 1 ? "s" : ""}
+            <span className="ml-auto flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">
+                {newsSignals.length} article{newsSignals.length !== 1 ? "s" : ""}
+              </span>
+              <span className="text-[9px] text-muted-foreground/60 italic">
+                AI-synthesised market context
+              </span>
             </span>
+
           </div>
           <div className="grid grid-cols-3 gap-3">
             {newsSignals.map((s, i) => {

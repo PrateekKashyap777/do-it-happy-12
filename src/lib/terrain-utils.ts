@@ -70,7 +70,7 @@ export function formatSignalsForPrompt(signals: Signal[]): string {
   }
 
   if (byType.news.length > 0) {
-    block += "--- NEWS ---\n";
+    block += "--- MARKET INTELLIGENCE (recent trends and context) ---\n";
     byType.news.forEach((s) => {
       block += `Headline: ${s.title}\n`;
       if (s.content) block += `Summary: ${s.content}\n`;
