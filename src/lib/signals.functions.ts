@@ -5,7 +5,7 @@ import { z } from "zod";
 type SignalRow = {
   client_id: string;
   signal_type: "news" | "market" | "competitor" | "rera" | "buyer_behaviour" | "search_query";
-  source: "rss" | "aqi" | "youtube" | "manual" | "dataforseo";
+  source: "rss" | "aqi" | "youtube" | "manual" | "dataforseo" | "meta";
   title: string;
   content: string;
   data: Record<string, unknown>;
@@ -648,7 +648,7 @@ export const pullMetaAds = createServerFn({ method: "POST" })
           rows.push({
             client_id: clientId,
             signal_type: "competitor",
-            source: "rss",
+            source: "meta",
             title: `${ad.page_name ?? comp}: "${(headline || body).slice(0, 80)}"`.slice(0, 240),
             content: [
               body.slice(0, 150) || "Active Meta ad",
@@ -715,7 +715,7 @@ export const pullMetaAds = createServerFn({ method: "POST" })
             rows.push({
               client_id: clientId,
               signal_type: "competitor",
-              source: "rss",
+              source: "meta",
               title: `Market: ${ad.page_name ?? "Competitor"}: "${(headline || body).slice(0, 70)}"`.slice(0, 240),
               content: `${body.slice(0, 150) || "Active property ad"} · ${daysRunning} days running`,
               data: {

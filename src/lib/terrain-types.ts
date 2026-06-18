@@ -126,5 +126,6 @@ export const SIGNAL_SOURCE_LABELS: Record<SignalSource, string> = {
   dataforseo: "DataForSEO",
   youtube: "YouTube",
   aqi: "AQI",
+  meta: "Meta Ads",
 };
 
