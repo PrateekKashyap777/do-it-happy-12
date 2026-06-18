@@ -554,6 +554,15 @@ function ClientDetail() {
                 </>
               )}
             </Button>
+            {(!client.keywords || client.keywords.length === 0) && (
+              <div className="terr-elevated border border-warning/30 rounded-sm p-3 mb-2 mt-2">
+                <p className="text-xs text-warning font-medium">No keywords configured</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Keyword and trends signals will be skipped. Use Discover Keywords
+                  in Settings first for full intelligence.
+                </p>
+              </div>
+            )}
             <Button
               type="button"
               className="w-full mt-2 bg-primary hover:bg-primary-hover"
@@ -573,6 +582,25 @@ function ClientDetail() {
                 </>
               )}
             </Button>
+            {pullingAll && Object.keys(pullProgress).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {Object.entries(pullProgress).map(([label, status]) => (
+                  <span
+                    key={label}
+                    className={`text-[9px] px-1.5 py-0.5 rounded-sm font-medium ${
+                      status === "done"
+                        ? "bg-success/15 text-success"
+                        : status === "failed"
+                        ? "bg-danger/15 text-danger"
+                        : "bg-elevated text-muted-foreground animate-pulse"
+                    }`}
+                  >
+                    {status === "done" ? "✓" : status === "failed" ? "✗" : "⟳"} {label}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <Button
               type="button"
               variant="outline"
