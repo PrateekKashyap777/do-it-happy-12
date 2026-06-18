@@ -73,6 +73,9 @@ export type Database = {
       clients: {
         Row: {
           agency_name: string
+          aqi_destination_city: string
+          aqi_source_cities: string[]
+          aqi_threshold: number
           brief_delivery_contact: string
           brief_delivery_method: string
           buyer_personas: Json
@@ -83,6 +86,8 @@ export type Database = {
           is_white_label: boolean
           keywords: string[]
           market_geography: string
+          meta_ad_account_id: string
+          meta_page_id: string
           name: string
           owner_id: string
           social_profiles: Json | null
@@ -92,6 +97,9 @@ export type Database = {
         }
         Insert: {
           agency_name?: string
+          aqi_destination_city?: string
+          aqi_source_cities?: string[]
+          aqi_threshold?: number
           brief_delivery_contact?: string
           brief_delivery_method?: string
           buyer_personas?: Json
@@ -102,6 +110,8 @@ export type Database = {
           is_white_label?: boolean
           keywords?: string[]
           market_geography: string
+          meta_ad_account_id?: string
+          meta_page_id?: string
           name: string
           owner_id?: string
           social_profiles?: Json | null
@@ -111,6 +121,9 @@ export type Database = {
         }
         Update: {
           agency_name?: string
+          aqi_destination_city?: string
+          aqi_source_cities?: string[]
+          aqi_threshold?: number
           brief_delivery_contact?: string
           brief_delivery_method?: string
           buyer_personas?: Json
@@ -121,6 +134,8 @@ export type Database = {
           is_white_label?: boolean
           keywords?: string[]
           market_geography?: string
+          meta_ad_account_id?: string
+          meta_page_id?: string
           name?: string
           owner_id?: string
           social_profiles?: Json | null

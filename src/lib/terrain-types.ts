@@ -57,6 +57,11 @@ export interface Client {
   status: string;
   created_at: string;
   updated_at: string;
+  meta_ad_account_id: string;
+  meta_page_id: string;
+  aqi_source_cities: string[];
+  aqi_destination_city: string;
+  aqi_threshold: number;
 }
 
 export interface Signal {
