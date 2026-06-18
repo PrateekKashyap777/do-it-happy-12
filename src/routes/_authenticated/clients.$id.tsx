@@ -639,3 +639,363 @@ function ClientDetail() {
     </AppShell>
   );
 }
+
+function ClientSettingsInline({
+  client,
+  clientId,
+  onSaved,
+}: {
+  client: Client;
+  clientId: string;
+  onSaved: () => void;
+}) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState<Client | null>(null);
+  const [socialProfiles, setSocialProfiles] = useState<SocialProfile[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newIG, setNewIG] = useState("");
+  const [newFB, setNewFB] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const genPrompt = useServerFn(generateDefaultSystemPrompt);
+
+  useEffect(() => {
+    setForm({
+      ...client,
+      name: client.name ?? "",
+      market_geography: client.market_geography ?? "",
+      keywords: client.keywords ?? [],
+      competitors: client.competitors ?? [],
+      buyer_personas: client.buyer_personas ?? [],
+      system_prompt: client.system_prompt ?? "",
+      gsc_property_url: client.gsc_property_url ?? "",
+      brief_delivery_method: client.brief_delivery_method ?? "whatsapp",
+      brief_delivery_contact: client.brief_delivery_contact ?? "",
+      agency_name: client.agency_name ?? "",
+      status: client.status ?? "active",
+    });
+    setSocialProfiles((client.social_profiles as SocialProfile[]) ?? []);
+  }, [client]);
+
+  if (!form) return <div className="text-sm text-muted-foreground">Loading...</div>;
+
+  function patch(p: Partial<Client>) {
+    setForm((f) => (f ? { ...f, ...p } : f));
+    setIsDirty(true);
+  }
+
+  async function save() {
+    if (!form) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from("clients").update({
+        name: form.name,
+        market_geography: form.market_geography,
+        keywords: form.keywords,
+        competitors: form.competitors,
+        buyer_personas: form.buyer_personas as never,
+        social_profiles: socialProfiles as never,
+        system_prompt: form.system_prompt,
+        gsc_property_url: form.gsc_property_url,
+        brief_delivery_method: form.brief_delivery_method,
+        brief_delivery_contact: form.brief_delivery_contact,
+        is_white_label: form.is_white_label,
+        agency_name: form.agency_name,
+        status: form.status,
+      }).eq("id", clientId);
+      if (error) throw error;
+      toast.success("Saved");
+      setIsDirty(false);
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally { setBusy(false); }
+  }
+
+  async function destroy() {
+    const { error } = await supabase.from("clients").delete().eq("id", clientId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Client deleted");
+    navigate({ to: "/clients" });
+  }
+
+  function addProfile() {
+    if (!newName.trim()) return;
+    const updated: SocialProfile[] = [
+      ...socialProfiles,
+      {
+        id: crypto.randomUUID(),
+        name: newName.trim(),
+        instagram: newIG.trim() || undefined,
+        facebook: newFB.trim() || undefined,
+        last_reviewed: null,
+      },
+    ];
+    setSocialProfiles(updated);
+    supabase.from("clients").update({ social_profiles: updated as never }).eq("id", clientId)
+      .then(({ error }) => {
+        if (error) toast.error("Failed to save profile");
+        else toast.success("Profile added and saved");
+      });
+    setNewName(""); setNewIG(""); setNewFB("");
+  }
+
+  function removeProfile(profileId: string) {
+    const remaining = socialProfiles.filter((p) => p.id !== profileId);
+    setSocialProfiles(remaining);
+    supabase.from("clients").update({ social_profiles: remaining as never }).eq("id", clientId)
+      .then(({ error }) => { if (error) toast.error("Failed to remove profile"); });
+  }
+
+  async function handleGeneratePrompt() {
+    if (!form) return;
+    setGenBusy(true);
+    try {
+      const res = await genPrompt({
+        data: {
+          name: form.name,
+          market_geography: form.market_geography,
+          keywords: form.keywords ?? [],
+          competitors: form.competitors ?? [],
+          buyer_personas: form.buyer_personas ?? [],
+        },
+      });
+      patch({ system_prompt: res.prompt });
+      toast.success("System prompt generated — review and save");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setGenBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex items-center justify-end gap-3">
+        {isDirty && (
+          <span className="flex items-center gap-1.5 text-xs text-amber-400">
+            <span className="h-2 w-2 rounded-full bg-amber-400 inline-block" />
+            Unsaved changes
+          </span>
+        )}
+        <Button className="bg-primary hover:bg-primary-hover" disabled={busy} onClick={save}>
+          {busy ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+
+      <SettingsSection title="Basics">
+        <SettingsField label="Name"><Input value={form.name} onChange={(e) => patch({ name: e.target.value })} /></SettingsField>
+        <SettingsField label="Market Geography"><Input value={form.market_geography} onChange={(e) => patch({ market_geography: e.target.value })} /></SettingsField>
+        <SettingsField label="Status">
+          <Select value={form.status} onValueChange={(v) => patch({ status: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="paused">Paused</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+        </SettingsField>
+        <div className="grid grid-cols-2 gap-4">
+          <SettingsField label="Brief Delivery Method">
+            <Select value={form.brief_delivery_method} onValueChange={(v) => patch({ brief_delivery_method: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="email">Email</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingsField>
+          <SettingsField label="Delivery Contact"><Input value={form.brief_delivery_contact} onChange={(e) => patch({ brief_delivery_contact: e.target.value })} /></SettingsField>
+        </div>
+        <div className="flex items-center justify-between terr-elevated p-3">
+          <div>
+            <div className="text-sm font-medium">White-label account</div>
+            <div className="text-xs text-muted-foreground">Use agency branding in delivered briefs.</div>
+          </div>
+          <Switch checked={form.is_white_label} onCheckedChange={(v) => patch({ is_white_label: v })} />
+        </div>
+        {form.is_white_label && (
+          <SettingsField label="Agency Name"><Input value={form.agency_name} onChange={(e) => patch({ agency_name: e.target.value })} /></SettingsField>
+        )}
+      </SettingsSection>
+
+      <SettingsSection title="Intelligence Config">
+        <SettingsField label="Keywords">
+          <div className="space-y-2">
+            <TagInput value={form.keywords} onChange={(v) => patch({ keywords: v })} placeholder="Add a keyword" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDiscoverOpen(true)}
+              className="border-primary text-primary hover:bg-primary/10"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Discover Keywords
+            </Button>
+          </div>
+        </SettingsField>
+        <SettingsField label="Competitors"><TagInput value={form.competitors} onChange={(v) => patch({ competitors: v })} placeholder="Add a competitor" /></SettingsField>
+        <SettingsField label="GSC Property URL"><Input value={form.gsc_property_url} onChange={(e) => patch({ gsc_property_url: e.target.value })} /></SettingsField>
+      </SettingsSection>
+
+      <SettingsSection title="Social Profiles">
+        <div className="space-y-3">
+          <div>
+            <Label className="terr-label">Competitor Social Profiles</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Instagram and Facebook accounts to monitor weekly.
+            </p>
+          </div>
+          {socialProfiles.map((p) => (
+            <div key={p.id} className="terr-elevated p-3 rounded-sm flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">{p.name}</p>
+                <div className="flex gap-3 mt-0.5 text-[10px] text-muted-foreground">
+                  {p.instagram && <span style={{ color: "#C94060" }}>IG @{p.instagram}</span>}
+                  {p.facebook && <span style={{ color: "#1877F2" }}>FB {p.facebook}</span>}
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-danger"
+                onClick={() => removeProfile(p.id)}>Remove</Button>
+            </div>
+          ))}
+          <div className="terr-elevated p-3 rounded-sm space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Add competitor account</p>
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)}
+              placeholder="Competitor name" className="text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <Input value={newIG} onChange={(e) => setNewIG(e.target.value)}
+                placeholder="Instagram handle (without @)" className="text-sm" />
+              <Input value={newFB} onChange={(e) => setNewFB(e.target.value)}
+                placeholder="Facebook page name" className="text-sm" />
+            </div>
+            <Button variant="outline" size="sm" onClick={addProfile} disabled={!newName.trim()}
+              className="w-full text-xs">+ Add profile</Button>
+          </div>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title="Buyer Personas">
+        <PersonaEditor value={form.buyer_personas} onChange={(v) => patch({ buyer_personas: v })} />
+      </SettingsSection>
+
+      <SettingsSection title="Claude System Prompt">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Claude uses this when generating every brief for this client.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleGeneratePrompt} disabled={genBusy}>
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+              {genBusy ? "Generating..." : "Generate"}
+            </Button>
+          </div>
+          <Textarea
+            value={form.system_prompt}
+            onChange={(e) => patch({ system_prompt: e.target.value })}
+            rows={16}
+            className="font-mono text-xs"
+            placeholder="Click Generate to auto-write a system prompt from this client's config, or write your own..."
+          />
+          {!form.system_prompt && (
+            <p className="text-xs text-amber-400">
+              ⚠ No system prompt set — briefs will use a generic fallback.
+            </p>
+          )}
+        </div>
+      </SettingsSection>
+
+      <div className="terr-card p-5 border-danger/40">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-danger">Danger Zone</h3>
+            <p className="text-xs text-muted-foreground mt-1">Permanently delete this client and all associated signals and briefs.</p>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="border-danger text-danger hover:bg-danger hover:text-foreground">Delete Client</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-elevated">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {form.name}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will delete the client and all associated signals and briefs. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={destroy} className="bg-danger hover:bg-danger/80">Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+
+      <KeywordDiscoveryModal
+        open={discoverOpen}
+        onOpenChange={setDiscoverOpen}
+        client={{
+          id: form.id,
+          name: form.name,
+          market_geography: form.market_geography,
+          buyer_personas: form.buyer_personas,
+          keywords: form.keywords,
+          gsc_property_url: form.gsc_property_url,
+        }}
+        onSaved={onSaved}
+      />
+    </div>
+  );
+}
+
+function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="terr-card p-5 space-y-4">
+      <h2 className="text-sm font-semibold">{title}</h2>
+      <div className="space-y-4">{children}</div>
+    </div>
+  );
+}
+
+function SettingsField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label className="terr-label">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function PersonaEditor({ value, onChange }: { value: BuyerPersona[]; onChange: (v: BuyerPersona[]) => void }) {
+  function add() { onChange([...value, { name: "", location: "", trigger: "", hook: "" }]); }
+  function update(i: number, patch: Partial<BuyerPersona>) {
+    onChange(value.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  }
+  function remove(i: number) { onChange(value.filter((_, idx) => idx !== i)); }
+
+  return (
+    <div className="space-y-3">
+      {value.map((p, i) => (
+        <div key={i} className="terr-elevated p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="terr-label">Persona #{i + 1}</span>
+            <button onClick={() => remove(i)} className="text-muted-foreground hover:text-danger">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input placeholder="Name" value={p.name} onChange={(e) => update(i, { name: e.target.value })} />
+            <Input placeholder="Location" value={p.location} onChange={(e) => update(i, { location: e.target.value })} />
+          </div>
+          <Input placeholder="Trigger" value={p.trigger} onChange={(e) => update(i, { trigger: e.target.value })} />
+          <Input placeholder="Hook line" value={p.hook} onChange={(e) => update(i, { hook: e.target.value })} />
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={add}><Plus className="h-3 w-3 mr-1" /> Add Persona</Button>
+    </div>
+  );
+}
