@@ -613,6 +613,8 @@ function ClientDetail() {
 
         </div>
       </div>
+      )}
+
 
       <AddSignalModal
         open={modal}
