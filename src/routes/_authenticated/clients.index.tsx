@@ -92,9 +92,13 @@ function ClientsList() {
                     <Link to="/clients/$id" params={{ id: c.id }}>
                       <Button size="sm" variant="ghost">View</Button>
                     </Link>
-                    <Link to="/clients/$id/settings" params={{ id: c.id }}>
-                      <Button size="sm" variant="ghost">Settings</Button>
-                    </Link>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { window.location.href = `/clients/${c.id}/settings`; }}
+                    >
+                      Settings
+                    </Button>
                   </td>
                 </tr>
               ))}

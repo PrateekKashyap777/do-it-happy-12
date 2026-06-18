@@ -314,9 +314,13 @@ function ClientDetail() {
           <span className={`terr-badge ${client.status === "active" ? "bg-success/15 text-success" : "bg-elevated text-muted-foreground"}`}>
             {client.status}
           </span>
-          <Link to="/clients/$id/settings" params={{ id: client.id }}>
-            <Button variant="ghost" size="sm">Settings</Button>
-          </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { window.location.href = `/clients/${client.id}/settings`; }}
+          >
+            Settings
+          </Button>
         </div>
       </div>
 
