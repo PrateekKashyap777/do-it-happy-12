@@ -675,6 +675,11 @@ function ClientSettingsInline({
       brief_delivery_contact: client.brief_delivery_contact ?? "",
       agency_name: client.agency_name ?? "",
       status: client.status ?? "active",
+      meta_ad_account_id: client.meta_ad_account_id ?? "",
+      meta_page_id: client.meta_page_id ?? "",
+      aqi_source_cities: client.aqi_source_cities ?? ["delhi", "gurgaon"],
+      aqi_destination_city: client.aqi_destination_city ?? "",
+      aqi_threshold: client.aqi_threshold ?? 280,
     });
     setSocialProfiles((client.social_profiles as SocialProfile[]) ?? []);
   }, [client]);
@@ -704,6 +709,11 @@ function ClientSettingsInline({
         is_white_label: form.is_white_label,
         agency_name: form.agency_name,
         status: form.status,
+        meta_ad_account_id: form.meta_ad_account_id,
+        meta_page_id: form.meta_page_id,
+        aqi_source_cities: form.aqi_source_cities,
+        aqi_destination_city: form.aqi_destination_city,
+        aqi_threshold: form.aqi_threshold,
       }).eq("id", clientId);
       if (error) throw error;
       toast.success("Saved");
@@ -961,11 +971,12 @@ function SettingsSection({ title, children }: { title: string; children: React.R
   );
 }
 
-function SettingsField({ label, children }: { label: string; children: React.ReactNode }) {
+function SettingsField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
       <Label className="terr-label">{label}</Label>
       {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }
