@@ -531,8 +531,35 @@ function BriefStudio() {
             <div className="text-xs">
               <span className="text-muted-foreground">Contact:</span>{" "}
               <span className="font-mono">{client.brief_delivery_contact || "—"}</span>
-            </div>
           </div>
+
+          <div className="border-t border-border pt-4 mt-4">
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="text-xs text-muted-foreground hover:text-danger w-full text-center"
+              >
+                Delete this brief
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-center text-danger">Delete this brief permanently?</p>
+                <p className="text-[10px] text-center text-muted-foreground">
+                  Signals are kept. You can generate a new brief from Client Detail.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setConfirmDelete(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" className="flex-1 text-xs bg-danger hover:bg-danger/90" onClick={handleDeleteBrief}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         </div>
       </div>
 
