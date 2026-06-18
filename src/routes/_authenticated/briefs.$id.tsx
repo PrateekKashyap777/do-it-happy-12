@@ -221,6 +221,7 @@ function BriefStudio() {
           },
         });
         toast.success("Brief marked sent and email delivered.");
+        setTimeout(() => navigate({ to: "/clients/$id", params: { id: brief.client_id } }), 2000);
       } catch (err) {
         toast.warning(
           `Marked sent but email delivery failed — ${getErrorMessage(err, "check RESEND_API_KEY in environment settings")}`,
@@ -228,7 +229,11 @@ function BriefStudio() {
       }
     } else {
       toast.success(`Marked ${BRIEF_STATUS_LABEL[status] ?? status}`);
+      if (status === "sent") {
+        setTimeout(() => navigate({ to: "/clients/$id", params: { id: brief.client_id } }), 2000);
+      }
     }
+
 
     refetch();
   }
