@@ -15,7 +15,8 @@ export type SignalSource =
   | "n8n"
   | "dataforseo"
   | "youtube"
-  | "aqi";
+  | "aqi"
+  | "meta";
 
 
 export type Urgency = "high" | "medium" | "low";
