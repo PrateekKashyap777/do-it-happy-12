@@ -417,6 +417,15 @@ function ClientDetail() {
               <Button variant="outline" size="sm" onClick={() => setModal(true)}>+ Add Signal</Button>
             </div>
             <div className="mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] text-muted-foreground">
+                  Toggle signals on/off to control what Claude reads when generating the brief.
+                </p>
+                <p className="text-[10px] font-medium text-foreground">
+                  {includedCount} of {signals?.length ?? 0} included
+                </p>
+              </div>
+
               <Tabs value={tab} onValueChange={(v) => setTab(v as "all" | SignalType)}>
                 <TabsList className="bg-elevated overflow-x-auto flex-wrap h-auto">
                   {TYPE_TABS.map((t) => (
