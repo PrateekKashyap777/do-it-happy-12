@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import type { Client, BuyerPersona, SocialProfile } from "@/lib/terrain-types";
-import { Plus, X, Sparkles } from "lucide-react";
+import { Plus, X, Sparkles, Wand2 } from "lucide-react";
 import { KeywordDiscoveryModal } from "@/components/KeywordDiscoveryModal";
 import { SocialWatchlist } from "@/components/SocialWatchlist";
+import { generateDefaultSystemPrompt } from "@/lib/anthropic.functions";
+import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/_authenticated/clients/$id/settings")({
   component: ClientSettings,
@@ -37,6 +39,8 @@ function ClientSettings() {
   const [newIG, setNewIG] = useState("");
   const [newFB, setNewFB] = useState("");
   const [isDirty, setIsDirty] = useState(false);
+  const [genBusy, setGenBusy] = useState(false);
+  const genPrompt = useServerFn(generateDefaultSystemPrompt);
 
   const { data } = useQuery({
     queryKey: ["client", id],
@@ -140,6 +144,28 @@ function ClientSettings() {
       .then(({ error }) => {
         if (error) toast.error("Failed to remove profile");
       });
+  }
+
+  async function handleGeneratePrompt() {
+    if (!form) return;
+    setGenBusy(true);
+    try {
+      const res = await genPrompt({
+        data: {
+          name: form.name,
+          market_geography: form.market_geography,
+          keywords: form.keywords ?? [],
+          competitors: form.competitors ?? [],
+          buyer_personas: form.buyer_personas ?? [],
+        },
+      });
+      patch({ system_prompt: res.prompt });
+      toast.success("System prompt generated — review and save");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setGenBusy(false);
+    }
   }
 
   return (
@@ -272,12 +298,34 @@ function ClientSettings() {
         </Section>
 
         <Section title="Claude System Prompt">
-          <Textarea
-            value={form.system_prompt}
-            onChange={(e) => patch({ system_prompt: e.target.value })}
-            rows={16}
-            className="font-mono text-xs"
-          />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Claude uses this when generating every brief for this client.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGeneratePrompt}
+                disabled={genBusy}
+              >
+                <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+                {genBusy ? "Generating..." : "Generate"}
+              </Button>
+            </div>
+            <Textarea
+              value={form.system_prompt}
+              onChange={(e) => patch({ system_prompt: e.target.value })}
+              rows={16}
+              className="font-mono text-xs"
+              placeholder="Click Generate to auto-write a system prompt from this client's config, or write your own..."
+            />
+            {!form.system_prompt && (
+              <p className="text-xs text-amber-400">
+                ⚠ No system prompt set — briefs will use a generic fallback.
+              </p>
+            )}
+          </div>
         </Section>
 
         <div className="terr-card p-5 border-danger/40">
