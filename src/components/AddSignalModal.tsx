@@ -39,10 +39,19 @@ export function AddSignalModal({ open, onOpenChange, clientId, weekDate, onSaved
   const [volume, setVolume] = useState("");
   const [movement, setMovement] = useState("");
 
+  // Buyer behaviour quantitative fields
+  const [formFills, setFormFills] = useState("");
+  const [cpl, setCpl] = useState("");
+  const [waResponseRate, setWaResponseRate] = useState("");
+  const [siteVisits, setSiteVisits] = useState("");
+  const [adSpend, setAdSpend] = useState("");
+
   function resetFields() {
     setTitle(""); setContent(""); setUrgency("medium");
     setImpressions(""); setClicks(""); setCtr(""); setPosition(""); setWeekChange("");
     setVolume(""); setMovement("");
+    setFormFills(""); setCpl(""); setWaResponseRate("");
+    setSiteVisits(""); setAdSpend("");
   }
 
   function buildData(): Record<string, number> {
@@ -60,9 +69,22 @@ export function AddSignalModal({ open, onOpenChange, clientId, weekDate, onSaved
         const n = num(v);
         if (n !== null && !Number.isNaN(n)) data[k] = n;
       }
+    } else if (type === "buyer_behaviour") {
+      const map = {
+        form_fills: formFills,
+        cpl,
+        whatsapp_response_rate: waResponseRate,
+        site_visits: siteVisits,
+        spend: adSpend,
+      };
+      for (const [k, v] of Object.entries(map)) {
+        const n = num(v);
+        if (n !== null && !Number.isNaN(n)) data[k] = n;
+      }
     }
     return data;
   }
+
 
   async function save() {
     if (!title.trim()) { toast.error("Title is required"); return; }
