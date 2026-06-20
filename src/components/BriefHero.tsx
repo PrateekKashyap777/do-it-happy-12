@@ -104,6 +104,34 @@ export function BriefHero({ content, signals, clientName, weekDate, status, clie
         </div>
       </div>
 
+      {/* ── THIS WEEK'S ACTION — pinned to top ──────────────────────────────── */}
+      {content.campaign_adjustment && (
+        <div
+          className="rounded-sm p-5 mb-4 relative overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #1A1A1A 0%, #1A2A1A 100%)", border: "1px solid #2A3A2A" }}
+        >
+          {/* Accent bar */}
+          <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-sm" style={{ background: "#F58A6C" }} />
+
+          <div className="pl-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">⚡</span>
+              <p className="text-[10px] font-medium tracking-[3px] uppercase" style={{ color: "#F58A6C" }}>
+                This week's action
+              </p>
+              {aqiTriggered && (
+                <span className="ml-auto text-[9px] font-medium tracking-wider uppercase px-2 py-0.5 rounded-sm bg-danger/20 text-danger animate-pulse">
+                  AQI trigger active
+                </span>
+              )}
+            </div>
+            <p className="text-base font-medium text-white leading-relaxed">
+              {content.campaign_adjustment}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div className="md:col-span-2 terr-card p-4">
           <p className="text-[10px] font-medium tracking-[2px] uppercase text-muted-foreground mb-3">
@@ -473,18 +501,10 @@ export function BriefHero({ content, signals, clientName, weekDate, status, clie
         )}
       </div>
 
-      {content.campaign_adjustment && (
-        <div className="terr-card p-4 mb-3 border-l-2" style={{ borderLeftColor: "#F58A6C" }}>
-          <p className="text-[10px] font-medium tracking-[2px] uppercase mb-2" style={{ color: "#C96742" }}>
-            ⚡ Campaign adjustment
-          </p>
-          <p className="text-sm text-foreground leading-relaxed">{content.campaign_adjustment}</p>
-        </div>
-      )}
 
       <div className="flex items-center gap-3 my-6">
         <div className="flex-1 h-px bg-border" />
-        <p className="text-[10px] tracking-[3px] uppercase text-muted-foreground">↓ Review and edit below</p>
+        <p className="text-[10px] tracking-[3px] uppercase text-muted-foreground">↓ Full intelligence below</p>
         <div className="flex-1 h-px bg-border" />
       </div>
     </div>
