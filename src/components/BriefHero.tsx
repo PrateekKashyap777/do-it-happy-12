@@ -390,6 +390,35 @@ export function BriefHero({ content, signals, clientName, weekDate, status, clie
         </div>
       )}
 
+      {/* ── BUYER PERSONAS ROW ─────────────────────────────────────────────── */}
+      {client?.buyer_personas && (client.buyer_personas as BuyerPersona[]).length > 0 && (
+        <div className="terr-card p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-medium tracking-[2px] uppercase text-muted-foreground">
+              👤 Buyer personas — {(client.buyer_personas as BuyerPersona[]).length} active
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {(client.buyer_personas as BuyerPersona[]).map((persona, i) => (
+              <div key={i} className="terr-elevated rounded-sm p-3 border border-border">
+                <p className="text-xs font-medium text-foreground">{persona.name}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{persona.location}</p>
+                {persona.trigger && (
+                  <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1 italic">
+                    {persona.trigger}
+                  </p>
+                )}
+                {persona.hook && (
+                  <p className="text-[10px] text-accent mt-1 line-clamp-1">
+                    "{persona.hook}"
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="terr-card p-4 mb-3">
         <p className="text-[10px] font-medium tracking-[2px] uppercase text-muted-foreground mb-3">
           🎥 Content this week
