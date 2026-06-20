@@ -504,7 +504,7 @@ export function BriefHero({ content, signals, clientName, weekDate, status, clie
 
       <div className="flex items-center gap-3 my-6">
         <div className="flex-1 h-px bg-border" />
-        <p className="text-[10px] tracking-[3px] uppercase text-muted-foreground">↓ Review and edit below</p>
+        <p className="text-[10px] tracking-[3px] uppercase text-muted-foreground">↓ Full intelligence below</p>
         <div className="flex-1 h-px bg-border" />
       </div>
     </div>
