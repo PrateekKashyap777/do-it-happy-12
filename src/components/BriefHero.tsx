@@ -1,4 +1,4 @@
-import type { Signal, BriefContent } from "@/lib/terrain-types";
+import type { Signal, BriefContent, Client, BuyerPersona } from "@/lib/terrain-types";
 
 interface BriefHeroProps {
   content: BriefContent;
@@ -6,9 +6,10 @@ interface BriefHeroProps {
   clientName: string;
   weekDate: string;
   status: string;
+  client: Client;
 }
 
-export function BriefHero({ content, signals, clientName, weekDate, status }: BriefHeroProps) {
+export function BriefHero({ content, signals, clientName, weekDate, status, client }: BriefHeroProps) {
   const searchSignals = signals.filter((s) => s.signal_type === "search_query").slice(0, 6);
   const competitorSignals = signals.filter((s) => s.signal_type === "competitor").slice(0, 6);
   const reraSignals = signals.filter((s) => s.signal_type === "rera").slice(0, 2);
@@ -385,6 +386,35 @@ export function BriefHero({ content, signals, clientName, weekDate, status }: Br
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ── BUYER PERSONAS ROW ─────────────────────────────────────────────── */}
+      {client?.buyer_personas && (client.buyer_personas as BuyerPersona[]).length > 0 && (
+        <div className="terr-card p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-medium tracking-[2px] uppercase text-muted-foreground">
+              👤 Buyer personas — {(client.buyer_personas as BuyerPersona[]).length} active
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {(client.buyer_personas as BuyerPersona[]).map((persona, i) => (
+              <div key={i} className="terr-elevated rounded-sm p-3 border border-border">
+                <p className="text-xs font-medium text-foreground">{persona.name}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{persona.location}</p>
+                {persona.trigger && (
+                  <p className="text-[10px] text-muted-foreground mt-1 line-clamp-1 italic">
+                    {persona.trigger}
+                  </p>
+                )}
+                {persona.hook && (
+                  <p className="text-[10px] text-accent mt-1 line-clamp-1">
+                    "{persona.hook}"
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
