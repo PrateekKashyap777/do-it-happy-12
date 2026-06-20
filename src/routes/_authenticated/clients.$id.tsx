@@ -488,19 +488,147 @@ function ClientDetail() {
           )}
         </div>
 
-        {/* RIGHT: summary */}
+        {/* ── RIGHT COLUMN ─────────────────────────────────────────── */}
         <div className="space-y-4">
-          <div className="terr-card p-5">
-            <div className="terr-label mb-3">Week Summary</div>
-            <div className="terr-stat">{signals.length}</div>
-            <div className="text-xs text-muted-foreground mt-1">signals total · {includedCount} included</div>
-            <div className={`mt-2 text-xs ${includedCount >= 2 ? "text-success" : "text-warning"}`}>
-              {includedCount >= 2
-                ? `${includedCount} of ${signals.length} signals included — ready to generate`
-                : `Add ${2 - includedCount} more included signal${2 - includedCount === 1 ? "" : "s"} to generate`}
+
+          {/* BRIEF STATUS — top of right column */}
+          <div className="terr-card p-4">
+            <p className="text-[10px] tracking-[2px] uppercase text-muted-foreground mb-2">
+              Brief status — week of {new Date(week).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+            </p>
+            {currentBrief ? (
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${
+                  currentBrief.status === "sent" ? "bg-success" :
+                  currentBrief.status === "approved" ? "bg-success" :
+                  currentBrief.status === "review" ? "bg-warning animate-pulse" : "bg-muted-foreground"
+                }`} />
+                <span className="text-sm font-medium">
+                  {currentBrief.status === "sent" ? "Delivered" :
+                    currentBrief.status === "approved" ? "Approved — ready to send" :
+                    currentBrief.status === "review" ? "In review" : "Draft"}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+                <span className="text-sm text-muted-foreground">No brief yet this week</span>
+              </div>
+            )}
+          </div>
+
+          {/* PRIMARY ACTION 1 — PULL ALL */}
+          <div className="terr-card p-4 space-y-2">
+            {(!client.keywords || client.keywords.length === 0) && (
+              <div className="terr-elevated border border-warning/30 rounded-sm p-3">
+                <p className="text-xs text-warning font-medium">No keywords configured</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Use Discover Keywords in Settings to get full intelligence.
+                </p>
+              </div>
+            )}
+            <Button
+              className="w-full h-12 text-sm font-medium bg-primary hover:bg-primary-hover"
+              onClick={handlePullAll}
+              disabled={pullingAll}
+            >
+              {pullingAll ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin">⟳</span> Pulling data...
+                </span>
+              ) : (
+                <>⚡ Pull All Sources</>
+              )}
+            </Button>
+
+            {pullingAll && Object.keys(pullProgress).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(pullProgress).map(([label, status]) => (
+                  <span
+                    key={label}
+                    className={`text-[9px] px-1.5 py-0.5 rounded-sm font-medium ${
+                      status === "done" ? "bg-success/15 text-success" :
+                      status === "failed" ? "bg-danger/15 text-danger" :
+                      "bg-elevated text-muted-foreground animate-pulse"
+                    }`}
+                  >
+                    {status === "done" ? "✓" : status === "failed" ? "✗" : "⟳"} {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* PRIMARY ACTION 2 — GENERATE / VIEW BRIEF */}
+          <div className="terr-card p-4 space-y-2">
+            {currentBrief ? (
+              <>
+                <Button
+                  className="w-full h-12 text-sm font-medium bg-primary hover:bg-primary-hover"
+                  onClick={() => navigate({ to: "/briefs/$id", params: { id: currentBrief.id } })}
+                >
+                  {currentBrief.status === "review" ? "Review Brief →" :
+                    currentBrief.status === "sent" ? "View Brief →" :
+                    "Open Brief →"}
+                </Button>
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground w-full text-center py-1"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? "Generating..." : "↺ Regenerate for this week"}
+                </button>
+              </>
+            ) : (
+              <Button
+                className="w-full h-12 text-sm font-medium bg-primary hover:bg-primary-hover"
+                onClick={handleGenerate}
+                disabled={generating || includedCount < 2}
+              >
+                {generating
+                  ? "Synthesising..."
+                  : includedCount < 2
+                  ? `Need ${2 - includedCount} more signal${2 - includedCount !== 1 ? "s" : ""}`
+                  : "Generate Brief"}
+              </Button>
+            )}
+          </div>
+
+          {/* SECONDARY ACTIONS */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs flex-1"
+              onClick={() => setModal(true)}
+            >
+              + Add Signal
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs flex-1"
+              onClick={() => setDiscoverOpen(true)}
+            >
+              Discover Keywords
+            </Button>
+          </div>
+
+          {/* SIGNAL SUMMARY */}
+          <div className="terr-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] tracking-[2px] uppercase text-muted-foreground">
+                Signal summary
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {includedCount} of {signals?.length ?? 0} included
+              </p>
             </div>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Toggle signals on/off to control what Claude reads when generating.
+            </p>
             {chartData.length > 0 && (
-              <div className="mt-4 h-32">
+              <div className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 10, top: 4, bottom: 4 }}>
                     <XAxis type="number" hide />
@@ -514,167 +642,42 @@ function ClientDetail() {
             )}
           </div>
 
-          {client.keywords?.length > 0 && (
-            <Collapsible>
-              <div className="terr-card p-5">
-                <CollapsibleTrigger className="w-full flex items-center justify-between">
-                  <div className="terr-label">Tracking {client.keywords.length} keyword{client.keywords.length === 1 ? "" : "s"}</div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3 flex flex-wrap gap-1.5">
-                  {client.keywords.map((k) => (
-                    <span key={k} className="terr-badge bg-elevated text-muted-foreground text-[11px]">{k}</span>
-                  ))}
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
-          )}
-
-
-          <div className="terr-card p-5">
-            <div className="terr-label mb-3">Live Data</div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Pull search volumes and Google Trends for {client.keywords?.length ?? 0} keyword{client.keywords?.length === 1 ? "" : "s"} into this week.
-            </p>
-            <Button
-              variant="outline"
-              className="w-full border-primary text-primary hover:bg-primary/10"
-              onClick={handlePullLiveData}
-              disabled={pulling || !client?.keywords?.length}
-            >
-              {pulling ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />
-                  Pulling live data...
-                </>
-              ) : (
-                <>
-                  <span className="mr-2">📡</span>
-                  Pull Live Data
-                </>
-              )}
-            </Button>
-            {(!client.keywords || client.keywords.length === 0) && (
-              <div className="terr-elevated border border-warning/30 rounded-sm p-3 mb-2 mt-2">
-                <p className="text-xs text-warning font-medium">No keywords configured</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Keyword and trends signals will be skipped. Use Discover Keywords
-                  in Settings first for full intelligence.
-                </p>
-              </div>
-            )}
-            <Button
-              type="button"
-              className="w-full mt-2 bg-primary hover:bg-primary-hover"
-              onClick={handlePullAll}
-              disabled={pullingAll}
-              title="Pull keywords + news + AQI + YouTube in parallel"
-            >
-              {pullingAll ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />
-                  Pulling all sources...
-                </>
-              ) : (
-                <>
-                  <span className="mr-2">⚡</span>
-                  Pull All
-                </>
-              )}
-            </Button>
-            {pullingAll && Object.keys(pullProgress).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {Object.entries(pullProgress).map(([label, status]) => (
-                  <span
-                    key={label}
-                    className={`text-[9px] px-1.5 py-0.5 rounded-sm font-medium ${
-                      status === "done"
-                        ? "bg-success/15 text-success"
-                        : status === "failed"
-                        ? "bg-danger/15 text-danger"
-                        : "bg-elevated text-muted-foreground animate-pulse"
-                    }`}
-                  >
-                    {status === "done" ? "✓" : status === "failed" ? "✗" : "⟳"} {label}
-                  </span>
+          {/* KEYWORDS — collapsed */}
+          {client.keywords && client.keywords.length > 0 && (
+            <details className="terr-elevated rounded-sm">
+              <summary className="p-3 text-xs cursor-pointer text-muted-foreground hover:text-foreground list-none flex items-center justify-between">
+                <span>Tracking {client.keywords.length} keywords</span>
+                <span>▾</span>
+              </summary>
+              <div className="px-3 pb-3 flex flex-wrap gap-1.5">
+                {client.keywords.map((kw) => (
+                  <span key={kw} className="terr-badge bg-elevated text-muted-foreground text-[11px]">{kw}</span>
                 ))}
               </div>
-            )}
+            </details>
+          )}
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-2 border-primary text-primary hover:bg-primary/10"
-              onClick={() => setDiscoverOpen(true)}
-            >
-              <Sparkles className="h-3.5 w-3.5 mr-2" />
-              Discover Keywords
-            </Button>
-          </div>
-
+          {/* SOCIAL WATCHLIST */}
           {((client.social_profiles as SocialProfile[]) ?? []).length > 0 && (
-            <div className="terr-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="terr-label">Social Watchlist</div>
-                <span className="text-[10px] text-muted-foreground">
-                  {((client.social_profiles as SocialProfile[]) ?? []).length} profile{((client.social_profiles as SocialProfile[]) ?? []).length === 1 ? "" : "s"}
-                </span>
-              </div>
+            <div className="terr-card p-4">
+              <p className="text-[10px] tracking-[2px] uppercase text-muted-foreground mb-3">
+                📱 Social review
+              </p>
               <SocialWatchlist
                 clientId={client.id}
                 profiles={(client.social_profiles as SocialProfile[]) ?? []}
                 weekDate={week}
-                onUpdated={refetch}
+                onUpdated={() => refetch()}
               />
             </div>
           )}
 
-          <div className="terr-card p-5">
-            <div className="terr-label mb-3">Brief Status</div>
-            {currentBrief ? (
-              <div className="space-y-2">
-                <Button
-                  className="w-full bg-primary hover:bg-primary-hover"
-                  onClick={() => navigate({ to: "/briefs/$id", params: { id: currentBrief.id } })}
-                >
-                  View Brief
-                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-sm ${
-                    currentBrief.status === "sent" ? "bg-primary-foreground/20" :
-                    currentBrief.status === "approved" ? "bg-success/20" :
-                    "bg-warning/20"
-                  }`}>
-                    {BRIEF_STATUS_LABEL[currentBrief.status] ?? currentBrief.status}
-                  </span>
-                </Button>
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
-                  onClick={handleGenerate}
-                  disabled={generating}
-                >
-                  {generating ? "Generating..." : "↺ Regenerate for this week"}
-                </button>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground mb-3">No brief generated yet.</p>
-                <Button
-                  className="w-full bg-primary hover:bg-primary-hover"
-                  onClick={handleGenerate}
-                  disabled={generating || includedCount < 2}
-                >
-                  {generating ? "Synthesising..." : "Generate Brief"}
-                </Button>
-                {includedCount < 2 && (
-                  <p className="text-[11px] text-muted-foreground mt-2">Need at least 2 included signals.</p>
-                )}
-              </>
-            )}
-          </div>
-
-
+          {/* BRIEF HISTORY */}
           {briefs.length > 0 && (
-            <div className="terr-card p-5">
-              <div className="terr-label mb-3">Brief History</div>
+            <div className="terr-card p-4">
+              <p className="text-[10px] tracking-[2px] uppercase text-muted-foreground mb-2">
+                Brief history
+              </p>
               <div className="space-y-1">
                 {briefs.slice(0, 8).map((b) => {
                   const preview = (b.content as { search_signals?: string } | null)?.search_signals?.slice(0, 60) ?? "";
