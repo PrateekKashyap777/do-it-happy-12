@@ -349,6 +349,7 @@ function BriefStudio() {
         clientName={client.name}
         weekDate={brief.week_date}
         status={brief.status}
+        client={client}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
