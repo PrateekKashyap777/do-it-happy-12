@@ -88,7 +88,7 @@ export const sendBriefEmail = createServerFn({ method: "POST" })
     `;
 
     const { error } = await resend.emails.send({
-      from: "Terrain Intelligence <briefs@resend.dev>",
+      from: "Terrain Intelligence <briefs@beamazingonline.com>",
       to: data.toEmail,
       subject: `${header} — ${clientName} — Week of ${dateStr}`,
       html,
