@@ -15,6 +15,8 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
+type ClientState = "sent" | "review" | "approved" | "ready" | "needs_data" | "no_signals";
+
 function Dashboard() {
   const week = currentWeekMonday();
   const navigate = useNavigate();
@@ -26,25 +28,15 @@ function Dashboard() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["dashboard", week],
     queryFn: async () => {
-      const fourWeeksAgo = new Date();
-      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-      const recentSince = fourWeeksAgo.toISOString().slice(0, 10);
-      const [clientsRes, signalsRes, briefsRes, recentRes] = await Promise.all([
+      const [clientsRes, signalsRes, briefsRes] = await Promise.all([
         supabase.from("clients").select("*").order("created_at", { ascending: false }),
-        supabase.from("signals").select("*").eq("week_date", week),
+        supabase.from("signals").select("client_id, id").eq("week_date", week),
         supabase.from("briefs").select("*").eq("week_date", week),
-        supabase.from("briefs").select("*").eq("status", "sent")
-          .gte("week_date", recentSince).order("week_date", { ascending: false }).limit(20),
       ]);
-      if (clientsRes.error) throw clientsRes.error;
-      if (signalsRes.error) throw signalsRes.error;
-      if (briefsRes.error) throw briefsRes.error;
-      if (recentRes.error) throw recentRes.error;
       return {
         clients: (clientsRes.data ?? []) as unknown as Client[],
-        signals: (signalsRes.data ?? []) as unknown as Signal[],
+        signals: (signalsRes.data ?? []) as { client_id: string; id: string }[],
         briefs: (briefsRes.data ?? []) as unknown as Brief[],
-        recentSent: (recentRes.data ?? []) as unknown as Brief[],
       };
     },
   });
@@ -52,261 +44,240 @@ function Dashboard() {
   const clients = data?.clients ?? [];
   const signals = data?.signals ?? [];
   const briefs = data?.briefs ?? [];
-  const recentSent = data?.recentSent ?? [];
-  const clientNameById = new Map(clients.map((c) => [c.id, c.name]));
-
   const active = clients.filter((c) => c.status === "active");
   const briefByClient = new Map<string, Brief>();
   briefs.forEach((b) => briefByClient.set(b.client_id, b));
-  const briefsDue = active.filter((c) => {
-    const b = briefByClient.get(c.id);
-    return !b || (b.status !== "approved" && b.status !== "sent");
+  const sigCountByClient = new Map<string, number>();
+  signals.forEach((s) => {
+    sigCountByClient.set(s.client_id, (sigCountByClient.get(s.client_id) ?? 0) + 1);
   });
-  const awaitingReview = briefs.filter((b) => b.status === "review");
 
-  async function handleGenerate(clientId: string) {
-    setGeneratingFor(clientId);
+  function getClientState(c: Client): ClientState {
+    const b = briefByClient.get(c.id);
+    const sigs = sigCountByClient.get(c.id) ?? 0;
+    if (b?.status === "sent") return "sent";
+    if (b?.status === "approved") return "approved";
+    if (b?.status === "review") return "review";
+    if (sigs >= 5) return "ready";
+    if (sigs > 0) return "needs_data";
+    return "no_signals";
+  }
+
+  async function handleGenerate(c: Client) {
+    setGeneratingFor(c.id);
     try {
-      const client = clients.find((c) => c.id === clientId)!;
-      const { data: clientSignals, error } = await supabase
-        .from("signals")
-        .select("*")
-        .eq("client_id", clientId)
-        .eq("week_date", week)
-        .eq("is_included", true);
-      if (error) throw error;
+      const { data: clientSignals } = await supabase
+        .from("signals").select("*")
+        .eq("client_id", c.id).eq("week_date", week).eq("is_included", true);
       if (!clientSignals || clientSignals.length < 2) {
-        toast.error("Add at least 2 signals before generating a brief.");
+        toast.error("Add at least 2 signals before generating.");
+        navigate({ to: "/clients/$id", params: { id: c.id } });
         return;
       }
       const { content, prompt_used } = await genBrief({
-        data: { client, signals: clientSignals as Signal[], weekDate: week },
+        data: { client: c, signals: clientSignals as Signal[], weekDate: week },
       });
-      const { data: brief, error: insErr } = await supabase
-        .from("briefs")
-        .insert({
-          client_id: clientId,
-          week_date: week,
-          status: "review",
-          content: content as never,
-          prompt_used,
-          signal_count: clientSignals.length,
-          generated_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-      if (insErr) throw insErr;
+      const { data: brief, error } = await supabase.from("briefs").insert({
+        client_id: c.id, week_date: week, status: "review",
+        content: content as never, prompt_used,
+        signal_count: clientSignals.length,
+        generated_at: new Date().toISOString(),
+      }).select().single();
+      if (error) throw error;
       toast.success("Brief generated");
       navigate({ to: "/briefs/$id", params: { id: brief!.id } });
     } catch (err) {
-      toast.error(`Brief generation failed — ${getErrorMessage(err, "try again or add more signals.")}`);
+      toast.error(getErrorMessage(err, "Brief generation failed"));
     } finally {
       setGeneratingFor(null);
       refetch();
     }
   }
 
-  async function handleSeed() {
-    setSeeding(true);
-    try {
-      const res = await seedDemo();
-      toast.success("Demo client created — exploring Pincode Bharat");
-      navigate({ to: "/clients/$id", params: { id: res.clientId } });
-    } catch (err) {
-      toast.error(getErrorMessage(err, "Failed to create demo"));
-    } finally {
-      setSeeding(false);
-    }
-  }
+  const doneCount = active.filter((c) => {
+    const s = getClientState(c);
+    return s === "sent" || s === "approved";
+  }).length;
+
+  const dateStr = new Date(week).toLocaleDateString("en-IN", {
+    day: "numeric", month: "long", year: "numeric",
+  });
 
   return (
     <AppShell>
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground font-mono mt-1">
-          Week of {week}
-        </p>
-      </div>
-
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        <MetricCard label="Active Clients" value={active.length} loading={isLoading} />
-        <MetricCard label="Briefs Due" value={briefsDue.length} loading={isLoading} accent={briefsDue.length > 0} />
-        <MetricCard label="Signals This Week" value={signals.length} loading={isLoading} />
-        <MetricCard label="Awaiting Review" value={awaitingReview.length} loading={isLoading} accent={awaitingReview.length > 0} />
-      </div>
-
-      <div className="terr-card">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="text-sm font-semibold">This Week's Briefing Status</h2>
-          <span className="terr-label">{active.length} client{active.length === 1 ? "" : "s"}</span>
+      {/* Header */}
+      <div className="flex items-end justify-between mb-8">
+        <div>
+          <p className="text-[10px] tracking-[3px] uppercase text-muted-foreground mb-1">
+            Terrain Intelligence
+          </p>
+          <h1 className="text-2xl font-semibold">Week of {dateStr}</h1>
         </div>
-        {isLoading ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
-        ) : active.length === 0 ? (
-          <EmptyState
-            title="No clients yet"
-            description="Create a demo client to explore Terrain, or add your own."
-            cta={
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  disabled={seeding}
-                  onClick={handleSeed}
-                >
-                  {seeding ? "Creating demo..." : "Try with demo data"}
-                </Button>
-                <Link to="/clients/new">
-                  <Button className="bg-primary hover:bg-primary-hover">Add Client</Button>
-                </Link>
-              </div>
-            }
-          />
-
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="terr-label px-5 py-2 font-normal">Client</th>
-                <th className="terr-label px-5 py-2 font-normal">Market</th>
-                <th className="terr-label px-5 py-2 font-normal">Signals</th>
-                <th className="terr-label px-5 py-2 font-normal">Brief Status</th>
-                <th className="terr-label px-5 py-2 font-normal text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map((c, i) => {
-                const sigCount = signals.filter((s) => s.client_id === c.id).length;
-                const b = briefByClient.get(c.id);
-                return (
-                  <tr key={c.id} className={i % 2 === 1 ? "bg-elevated/40" : ""}>
-                    <td className="px-5 py-3">
-                      <Link to="/clients/$id" params={{ id: c.id }} className="font-medium hover:text-accent">
-                        {c.name}
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3 text-muted-foreground">{c.market_geography}</td>
-                    <td className="px-5 py-3">
-                      <SignalCountBadge count={sigCount} />
-                    </td>
-                    <td className="px-5 py-3"><BriefStatusBadge brief={b} /></td>
-                    <td className="px-5 py-3 text-right">
-                      {!b || b.status === "draft" ? (
-                        <Button
-                          size="sm"
-                          className="bg-primary hover:bg-primary-hover"
-                          disabled={generatingFor === c.id}
-                          onClick={() => handleGenerate(c.id)}
-                        >
-                          {generatingFor === c.id ? "Synthesising..." : "Generate Brief"}
-                        </Button>
-                      ) : b.status === "sent" ? (
-                        <Link to="/briefs/$id" params={{ id: b.id }}>
-                          <Button size="sm" variant="ghost">View</Button>
-                        </Link>
-                      ) : (
-                        <Link to="/briefs/$id" params={{ id: b.id }}>
-                          <Button size="sm" variant="outline">Open Brief</Button>
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {active.length > 0 && (
+          <div className="text-right">
+            <div className="text-2xl font-semibold tabular-nums">
+              {doneCount}
+              <span className="text-muted-foreground text-lg">/{active.length}</span>
+            </div>
+            <p className="text-[10px] tracking-[2px] uppercase text-muted-foreground mt-1">
+              briefs delivered
+            </p>
+          </div>
         )}
       </div>
 
-      {recentSent.length > 0 && (
-        <div className="terr-card mt-6">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Recent Deliveries</h2>
-            <span className="terr-label">Last 4 weeks</span>
+      {/* Empty state */}
+      {!isLoading && active.length === 0 && (
+        <div className="terr-card p-12 text-center">
+          <p className="font-medium">No clients yet</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Add your first client or explore with demo data.
+          </p>
+          <div className="mt-4 flex justify-center gap-2">
+            <Button
+              variant="outline"
+              disabled={seeding}
+              onClick={async () => {
+                setSeeding(true);
+                try {
+                  const res = await seedDemo();
+                  navigate({ to: "/clients/$id", params: { id: res.clientId } });
+                } catch (err) {
+                  toast.error(getErrorMessage(err, "Failed"));
+                } finally { setSeeding(false); }
+              }}
+            >
+              {seeding ? "Creating..." : "Try demo data"}
+            </Button>
+            <Link to="/clients/new">
+              <Button className="bg-primary hover:bg-primary-hover">Add Client</Button>
+            </Link>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="terr-label px-5 py-2 font-normal">Client</th>
-                <th className="terr-label px-5 py-2 font-normal">Week</th>
-                <th className="terr-label px-5 py-2 font-normal">Signals</th>
-                <th className="terr-label px-5 py-2 font-normal">Key insight</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentSent.map((b, i) => {
-                const insight = (b.content?.search_signals ?? "").slice(0, 80);
-                return (
-                  <tr key={b.id} className={i % 2 === 1 ? "bg-elevated/40" : ""}>
-                    <td className="px-5 py-2.5">
-                      <Link to="/briefs/$id" params={{ id: b.id }} className="font-medium hover:text-accent">
-                        {clientNameById.get(b.client_id) ?? "—"}
+        </div>
+      )}
+
+      {/* Client workflow cards */}
+      {active.length > 0 && (
+        <div className="space-y-3">
+          {isLoading
+            ? [1, 2, 3].map((i) => (
+                <div key={i} className="terr-card p-5 h-[82px] animate-pulse" />
+              ))
+            : active.map((c) => {
+                const state = getClientState(c);
+                const sigCount = sigCountByClient.get(c.id) ?? 0;
+                const brief = briefByClient.get(c.id);
+
+                const stateConfig: Record<ClientState, {
+                  dot: string; label: string; sublabel: string;
+                  action: React.ReactNode;
+                }> = {
+                  sent: {
+                    dot: "bg-success",
+                    label: "Brief delivered",
+                    sublabel: `${sigCount} signals · sent this week`,
+                    action: (
+                      <Link to="/briefs/$id" params={{ id: brief!.id }}>
+                        <Button variant="ghost" size="sm" className="text-muted-foreground">
+                          View →
+                        </Button>
                       </Link>
-                    </td>
-                    <td className="px-5 py-2.5 font-mono text-xs text-muted-foreground">{b.week_date}</td>
-                    <td className="px-5 py-2.5 font-mono text-xs">{b.signal_count}</td>
-                    <td className="px-5 py-2.5 text-xs text-muted-foreground truncate max-w-[420px]">
-                      {insight ? `${insight}${insight.length === 80 ? "…" : ""}` : "—"}
-                    </td>
-                  </tr>
+                    ),
+                  },
+                  approved: {
+                    dot: "bg-success",
+                    label: "Approved — ready to send",
+                    sublabel: `${sigCount} signals`,
+                    action: (
+                      <Link to="/briefs/$id" params={{ id: brief!.id }}>
+                        <Button size="sm" className="bg-primary hover:bg-primary-hover">
+                          Send brief →
+                        </Button>
+                      </Link>
+                    ),
+                  },
+                  review: {
+                    dot: "bg-warning animate-pulse",
+                    label: "Brief awaiting review",
+                    sublabel: `${sigCount} signals · generated, not approved`,
+                    action: (
+                      <Link to="/briefs/$id" params={{ id: brief!.id }}>
+                        <Button size="sm" className="bg-primary hover:bg-primary-hover">
+                          Review brief →
+                        </Button>
+                      </Link>
+                    ),
+                  },
+                  ready: {
+                    dot: "bg-accent",
+                    label: "Ready to generate",
+                    sublabel: `${sigCount} signals pulled · no brief yet`,
+                    action: (
+                      <Button
+                        size="sm"
+                        className="bg-primary hover:bg-primary-hover"
+                        disabled={generatingFor === c.id}
+                        onClick={() => handleGenerate(c)}
+                      >
+                        {generatingFor === c.id ? "Generating..." : "Generate brief →"}
+                      </Button>
+                    ),
+                  },
+                  needs_data: {
+                    dot: "bg-warning",
+                    label: "More data needed",
+                    sublabel: `${sigCount} signal${sigCount !== 1 ? "s" : ""} · pull more before generating`,
+                    action: (
+                      <Link to="/clients/$id" params={{ id: c.id }}>
+                        <Button size="sm" variant="outline">Pull data →</Button>
+                      </Link>
+                    ),
+                  },
+                  no_signals: {
+                    dot: "bg-danger",
+                    label: "No data yet",
+                    sublabel: "Pull all sources to start",
+                    action: (
+                      <Link to="/clients/$id" params={{ id: c.id }}>
+                        <Button size="sm" variant="outline">Pull data →</Button>
+                      </Link>
+                    ),
+                  },
+                };
+
+                const cfg = stateConfig[state];
+
+                return (
+                  <div
+                    key={c.id}
+                    className="terr-card p-5 flex items-center justify-between gap-4"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cfg.dot}`} />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to="/clients/$id"
+                            params={{ id: c.id }}
+                            className="font-medium hover:text-accent truncate"
+                          >
+                            {c.name}
+                          </Link>
+                          {c.market_geography && (
+                            <span className="text-xs text-muted-foreground hidden sm:block shrink-0">
+                              {c.market_geography}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{cfg.sublabel}</p>
+                      </div>
+                    </div>
+                    <div className="shrink-0">{cfg.action}</div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
         </div>
       )}
     </AppShell>
-  );
-}
-
-function MetricCard({
-  label, value, loading, accent,
-}: { label: string; value: number; loading: boolean; accent?: boolean }) {
-  return (
-    <div className="terr-card p-5">
-      <div className="terr-label">{label}</div>
-      <div className={`terr-stat mt-3 ${accent ? "text-accent" : ""}`}>
-        {loading ? "—" : value}
-      </div>
-    </div>
-  );
-}
-
-function SignalCountBadge({ count }: { count: number }) {
-  const cls =
-    count >= 5
-      ? "bg-success/15 text-success"
-      : count >= 3
-        ? "bg-warning/15 text-warning"
-        : "bg-danger/15 text-danger";
-  return <span className={`terr-badge font-mono ${cls}`}>{count}</span>;
-}
-
-const BRIEF_STATUS_LABEL: Record<string, string> = {
-  draft: "Draft",
-  review: "In Review",
-  approved: "Approved",
-  sent: "Sent",
-};
-
-function BriefStatusBadge({ brief }: { brief?: Brief }) {
-  if (!brief) return <span className="terr-badge border border-danger text-danger">Not Started</span>;
-  const map: Record<string, string> = {
-    draft: "bg-elevated text-muted-foreground",
-    review: "bg-warning/15 text-warning",
-    approved: "bg-success/15 text-success",
-    sent: "bg-primary/25 text-primary-foreground",
-  };
-  return <span className={`terr-badge ${map[brief.status] ?? "bg-elevated"}`}>{BRIEF_STATUS_LABEL[brief.status] ?? brief.status}</span>;
-}
-
-
-function EmptyState({ title, description, cta }: { title: string; description: string; cta?: React.ReactNode }) {
-  return (
-    <div className="p-12 text-center">
-      <p className="font-medium">{title}</p>
-      <p className="text-sm text-muted-foreground mt-1">{description}</p>
-      {cta && <div className="mt-4 flex justify-center">{cta}</div>}
-    </div>
   );
 }
