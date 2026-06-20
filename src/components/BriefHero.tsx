@@ -501,14 +501,6 @@ export function BriefHero({ content, signals, clientName, weekDate, status, clie
         )}
       </div>
 
-      {content.campaign_adjustment && (
-        <div className="terr-card p-4 mb-3 border-l-2" style={{ borderLeftColor: "#F58A6C" }}>
-          <p className="text-[10px] font-medium tracking-[2px] uppercase mb-2" style={{ color: "#C96742" }}>
-            ⚡ Campaign adjustment
-          </p>
-          <p className="text-sm text-foreground leading-relaxed">{content.campaign_adjustment}</p>
-        </div>
-      )}
 
       <div className="flex items-center gap-3 my-6">
         <div className="flex-1 h-px bg-border" />
