@@ -342,7 +342,7 @@ function ClientDetail() {
   }
 
   return (
-    <AppShell>
+    <AppShell clientName={client.name} clientMarket={client.market_geography} clientId={client.id}>
       <div className="mb-6 text-sm text-muted-foreground">
         <Link to="/clients" className="hover:text-foreground">Clients</Link>
         <span className="mx-2">/</span>

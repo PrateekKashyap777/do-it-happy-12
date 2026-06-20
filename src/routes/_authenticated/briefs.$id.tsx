@@ -304,7 +304,7 @@ function BriefStudio() {
   }
 
   return (
-    <AppShell>
+    <AppShell clientName={client.name} clientMarket={client.market_geography} clientId={client.id}>
       <div className="mb-6 text-sm text-muted-foreground">
         <Link to="/clients" className="hover:text-foreground">Clients</Link>
         <span className="mx-2">/</span>
@@ -595,6 +595,67 @@ function BriefStudio() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* STICKY BOTTOM ACTION BAR — always visible until sent */}
+      {brief && brief.status !== "sent" && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-surface/95 backdrop-blur-sm border-t border-border">
+          <div className="mx-auto max-w-[1400px] px-6 py-3 flex items-center justify-between gap-4">
+            {/* Left: brief context */}
+            <div className="flex items-center gap-3 min-w-0">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                brief.status === "approved" ? "bg-success" :
+                brief.status === "review" ? "bg-warning animate-pulse" : "bg-muted-foreground"
+              }`} />
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{client?.name}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Week of {new Date(brief.week_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  {" · "}{BRIEF_STATUS_LABEL[brief.status] ?? brief.status}
+                </p>
+              </div>
+            </div>
+
+            {/* Right: primary actions */}
+            <div className="flex items-center gap-2">
+              {brief.status === "review" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => updateStatus("approved")}
+                >
+                  Approve
+                </Button>
+              )}
+
+              {brief.status === "approved" && (
+                <Button
+                  size="sm"
+                  className="bg-primary hover:bg-primary-hover font-medium px-5"
+                  onClick={() => setConfirmSend(true)}
+                >
+                  Send Brief →
+                </Button>
+              )}
+
+              {brief.status === "review" && (
+                <Button
+                  size="sm"
+                  className="font-medium px-5 text-primary-foreground"
+                  style={{ background: "#1A5E45" }}
+                  onClick={() => {
+                    updateStatus("approved").then(() => setConfirmSend(true));
+                  }}
+                >
+                  Approve &amp; Send →
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom padding so content isn't hidden behind sticky bar */}
+      {brief && brief.status !== "sent" && <div className="h-20" />}
     </AppShell>
   );
 }
