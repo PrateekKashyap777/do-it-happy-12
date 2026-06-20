@@ -1,4 +1,4 @@
-import type { Signal, BriefContent } from "@/lib/terrain-types";
+import type { Signal, BriefContent, Client, BuyerPersona } from "@/lib/terrain-types";
 
 interface BriefHeroProps {
   content: BriefContent;
@@ -6,9 +6,10 @@ interface BriefHeroProps {
   clientName: string;
   weekDate: string;
   status: string;
+  client: Client;
 }
 
-export function BriefHero({ content, signals, clientName, weekDate, status }: BriefHeroProps) {
+export function BriefHero({ content, signals, clientName, weekDate, status, client }: BriefHeroProps) {
   const searchSignals = signals.filter((s) => s.signal_type === "search_query").slice(0, 6);
   const competitorSignals = signals.filter((s) => s.signal_type === "competitor").slice(0, 6);
   const reraSignals = signals.filter((s) => s.signal_type === "rera").slice(0, 2);
