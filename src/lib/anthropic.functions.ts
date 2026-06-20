@@ -300,11 +300,17 @@ export const generateBrief = createServerFn({ method: "POST" })
     const system = `${baseSystem}\n\nSTRICT OUTPUT CONTRACT: Use the provided tool exactly once. The tool input must contain only these six top-level fields: search_signals, competitor_activity, rera_watch, buyer_behaviour, content_recommendations, campaign_adjustment. Do not include week, brand, market, primary_keyword, prepared_by, executive_summary, brief_metadata, intelligence_brief, markdown, or commentary. Keep every narrative field to 2-4 concise sentences.`;
 
 
+    const personaNames = client.buyer_personas?.length
+      ? `\n\nIMPORTANT: For each content recommendation, use one of these exact persona names in the "persona" field: ${
+          (client.buyer_personas as BuyerPersona[]).map((p) => p.name).join(", ")
+        }. Do not use generic names like "Active property buyer" — always reference a specific named persona from this list.`
+      : "";
+
     const user = `Here is this week's intelligence data for ${client.name}. Generate the weekly brief.
 
 WEEK OF: ${data.weekDate}
 
-${signalBlock}
+${signalBlock}${personaNames}
 
 Return the weekly brief by calling the required tool. Keep it compact and do not add wrapper metadata.`;
 
