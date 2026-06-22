@@ -176,38 +176,39 @@ function Dashboard() {
                     dot: "bg-success",
                     label: "Brief delivered",
                     sublabel: `${sigCount} signals · sent this week`,
-                    action: (
-                      <Link to="/briefs/$id" params={{ id: brief!.id }}>
+                    action: brief ? (
+                      <Link to="/briefs/$id" params={{ id: brief.id }}>
                         <Button variant="ghost" size="sm" className="text-muted-foreground">
                           View →
                         </Button>
                       </Link>
-                    ),
+                    ) : null,
                   },
                   approved: {
                     dot: "bg-success",
                     label: "Approved — ready to send",
                     sublabel: `${sigCount} signals`,
-                    action: (
-                      <Link to="/briefs/$id" params={{ id: brief!.id }}>
+                    action: brief ? (
+                      <Link to="/briefs/$id" params={{ id: brief.id }}>
                         <Button size="sm" className="bg-primary hover:bg-primary-hover">
                           Send brief →
                         </Button>
                       </Link>
-                    ),
+                    ) : null,
                   },
                   review: {
                     dot: "bg-warning animate-pulse",
                     label: "Brief awaiting review",
                     sublabel: `${sigCount} signals · generated, not approved`,
-                    action: (
-                      <Link to="/briefs/$id" params={{ id: brief!.id }}>
+                    action: brief ? (
+                      <Link to="/briefs/$id" params={{ id: brief.id }}>
                         <Button size="sm" className="bg-primary hover:bg-primary-hover">
                           Review brief →
                         </Button>
                       </Link>
-                    ),
+                    ) : null,
                   },
+
                   ready: {
                     dot: "bg-accent",
                     label: "Ready to generate",
